@@ -14,8 +14,10 @@ import {
   Radio,
   Search,
   Share2,
+  Sparkles,
   TrendingDown,
   TrendingUp,
+  Upload,
   Volume2,
   Wifi,
 } from 'lucide-react';
@@ -42,6 +44,17 @@ interface CommunityModulesViewProps {
   onToggleFavoriteStation: (id: number) => void;
   rates: GoldSilverRateData;
   galleryAlbums: GalleryAlbum[];
+  onAddGalleryPhoto?: (payload: {
+    titleNe: string;
+    titleEn: string;
+    category: GalleryAlbum['category'];
+    locationNe: string;
+    locationEn: string;
+    coverImage: string;
+    descriptionNe: string;
+    descriptionEn: string;
+  }) => void;
+  onMakeWallpaperWithPhoto?: (imageUrl?: string) => void;
   events: ChristianEventItem[];
   churches: ChurchDirectoryItem[];
   onNotify: (msg: string) => void;
@@ -60,6 +73,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
   onToggleFavoriteStation,
   rates,
   galleryAlbums,
+  onAddGalleryPhoto,
+  onMakeWallpaperWithPhoto,
   events,
   churches,
   onNotify,
@@ -72,9 +87,95 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
 
   const [selectedGalleryCat, setSelectedGalleryCat] = useState<string>('all');
   const [selectedAlbum, setSelectedAlbum] = useState<GalleryAlbum | null>(null);
+  const [showUploadForm, setShowUploadForm] = useState<boolean>(false);
+  const [uploadTitle, setUploadTitle] = useState<string>('');
+  const [uploadLocation, setUploadLocation] = useState<string>('काठमाडौँ, नेपाल');
+  const [uploadCategory, setUploadCategory] = useState<GalleryAlbum['category']>('worship');
+  const [uploadDescription, setUploadDescription] = useState<string>('');
+  const [uploadPreviewDataUrl, setUploadPreviewDataUrl] = useState<string>('');
+
   const [rsvpEventIds, setRsvpEventIds] = useState<number[]>([]);
   const [churchSearch, setChurchSearch] = useState('');
+  const [ytMusicInput, setYtMusicInput] = useState<string>('');
+  const [activeYtMusicEmbed, setActiveYtMusicEmbed] = useState<string | null>(null);
+  const [activeYtTitle, setActiveYtTitle] = useState<string>('नेपाली ख्रीष्टिय भजन र आराधना संगीत');
   const isOnline = useOnlineStatus();
+
+  const extractYoutubeEmbed = (rawUrl: string): string | null => {
+    const url = rawUrl.trim();
+    if (!url) return null;
+    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+    if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}?autoplay=1`;
+    const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/);
+    if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}?autoplay=1`;
+    const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+    if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}?autoplay=1`;
+    const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+    if (embedMatch) return `https://www.youtube.com/embed/${embedMatch[1]}?autoplay=1`;
+    return null;
+  };
+
+  const handlePlayYoutubeMusicLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    const embed = extractYoutubeEmbed(ytMusicInput);
+    if (!embed) {
+      onNotify(
+        lang === 'ne'
+          ? 'कृपया सही YouTube भिडियो वा भजनको लिङ्क राख्नुहोस्।'
+          : 'Please enter a valid YouTube music or worship link.'
+      );
+      return;
+    }
+    setActiveYtMusicEmbed(embed);
+    setActiveYtTitle('YouTube भजन तथा आराधना संगीत');
+    onNotify(
+      lang === 'ne'
+        ? 'YouTube भजन तथा आराधना संगीत बज्न सुरु भयो!'
+        : 'Playing YouTube worship music!'
+    );
+  };
+
+  const handleGalleryFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setUploadPreviewDataUrl(reader.result);
+        if (!uploadTitle) {
+          setUploadTitle(file.name.replace(/\.[^/.]+$/, ''));
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadPreviewDataUrl) {
+      onNotify(lang === 'ne' ? 'कृपया पहिले फोटो छान्नुहोस्।' : 'Please select a photo first.');
+      return;
+    }
+    const finalTitle = uploadTitle.trim() || 'सुसमाचार ख्रीष्टिय तस्बिर';
+    onAddGalleryPhoto?.({
+      titleNe: finalTitle,
+      titleEn: finalTitle,
+      category: uploadCategory,
+      locationNe: uploadLocation || 'नेपाल',
+      locationEn: uploadLocation || 'Nepal',
+      coverImage: uploadPreviewDataUrl,
+      descriptionNe:
+        uploadDescription.trim() ||
+        'biblesandes.com मा अपलोड गरिएको ख्रीष्टिय तस्बिर तथा वालपेपर।',
+      descriptionEn:
+        uploadDescription.trim() ||
+        'Christian photo and wallpaper uploaded on biblesandes.com.',
+    });
+    setUploadTitle('');
+    setUploadDescription('');
+    setUploadPreviewDataUrl('');
+    setShowUploadForm(false);
+  };
 
   const formatNPR = (num: number) => {
     const formatted = num.toLocaleString('en-IN');
@@ -120,7 +221,7 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
       </div>
 
       {/* =====================================================================
-          1. CHRISTIAN FM RADIO MODULE
+          1. CHRISTIAN FM RADIO & YOUTUBE WORSHIP MUSIC PLAYER MODULE
          ===================================================================== */}
       {subTab === 'radio' && (
         <div className="space-y-6">
@@ -132,8 +233,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                 <span>
                   {isOnline
                     ? lang === 'ne'
-                      ? 'प्रत्यक्ष प्रसारण तयार छ (Online Stream Active)'
-                      : 'Live Broadcast Connected'
+                      ? 'प्रत्यक्ष अडियो प्रसारण तयार छ (Real Live FM Stream + YouTube Worship)'
+                      : 'Real Live FM Audio Stream + YouTube Worship Player Ready'
                     : lang === 'ne'
                     ? 'अफलाइन मोड (Local Audio Synthesizer)'
                     : 'Offline Mode'}
@@ -145,8 +246,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                     ? radioStations.find((s) => s.id === activeStationId)?.nameNe
                     : radioStations.find((s) => s.id === activeStationId)?.nameEn
                   : lang === 'ne'
-                  ? 'सुसमाचार इसाई एफ.एम. रेडियो नेटवर्क'
-                  : 'Susamachar Christian FM Radio Network'}
+                  ? 'सुसमाचार इसाई एफ.एम. रेडियो र YouTube भजन प्लेयर'
+                  : 'Susamachar Christian FM Radio & YouTube Worship Player'}
               </h2>
               <p className="text-xs text-slate-300 max-w-2xl">
                 {activeStationId
@@ -154,8 +255,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                     ? radioStations.find((s) => s.id === activeStationId)?.currentProgramNe
                     : radioStations.find((s) => s.id === activeStationId)?.currentProgramEn
                   : lang === 'ne'
-                  ? 'तलकामध्ये कुनै पनि रेडियो स्टेशनमा "बजाउनुहोस् (Play)" थिचेर भजन र बाइबल वचन सुन्नुहोस्।'
-                  : 'Select any station below to listen to live Nepali Christian worship hymns and Bible teaching.'}
+                  ? 'तलका कुनै पनि प्रत्यक्ष एफ.एम. रेडियो स्टेशन सुन्नुहोस् वा YouTube बाट कुनै पनि ख्रीष्टिय भजन/संगीतको लिङ्क राखेर सिधै बजाउनुहोस्।'
+                  : 'Listen to live Christian FM stations below or paste any YouTube Christian worship/music link to play directly.'}
               </p>
             </div>
 
@@ -189,10 +290,103 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                 <span>
                   {isPlayingRadio
                     ? lang === 'ne' ? 'रोक्नुहोस् (Pause)' : 'Pause Broadcast'
-                    : lang === 'ne' ? 'प्रत्यक्ष सुन्नुहोस् (Play Live)' : 'Play Live Stream'}
+                    : lang === 'ne' ? 'प्रत्यक्ष एफ.एम. सुन्नुहोस् (Play FM)' : 'Play Live FM Stream'}
                 </span>
               </button>
             </div>
+          </div>
+
+          {/* YouTube Worship & Music Link Player */}
+          <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-red-800 dark:text-amber-400">
+                  {lang === 'ne'
+                    ? 'YouTube भजन तथा आराधना संगीत प्लेयर (Play Music from YouTube)'
+                    : 'YouTube Worship & Christian Music Link Player'}
+                </p>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  {lang === 'ne'
+                    ? 'कुनै पनि YouTube भजन वा संगीतको लिङ्क पेस्ट गरेर बजाउनुहोस्'
+                    : 'Paste Any YouTube Worship or Music Link to Play Immediately'}
+                </h3>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  {
+                    labelNe: '🎵 नेपाली आराधना धुन १',
+                    labelEn: '🎵 Nepali Worship 1',
+                    embed: 'https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1',
+                  },
+                  {
+                    labelNe: '🎵 शान्त प्रार्थना संगीत',
+                    labelEn: '🎵 Peaceful Prayer Instrumental',
+                    embed: 'https://www.youtube.com/embed/DWcJFNfaw9c?autoplay=1',
+                  },
+                ].map((preset, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setActiveYtMusicEmbed(preset.embed);
+                      setActiveYtTitle(lang === 'ne' ? preset.labelNe : preset.labelEn);
+                    }}
+                    className="h-8 px-3 rounded-lg bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                  >
+                    {lang === 'ne' ? preset.labelNe : preset.labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handlePlayYoutubeMusicLink} className="flex flex-col sm:flex-row gap-2.5">
+              <input
+                type="url"
+                value={ytMusicInput}
+                onChange={(e) => setYtMusicInput(e.target.value)}
+                placeholder={
+                  lang === 'ne'
+                    ? 'YouTube भजन वा संगीतको लिङ्क राख्नुहोस् (उदा: https://www.youtube.com/watch?v=...)'
+                    : 'Paste YouTube music/worship link (e.g. https://www.youtube.com/watch?v=...)'
+                }
+                className="flex-1 h-11 px-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs"
+              />
+              <button
+                type="submit"
+                className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center justify-center gap-2 shrink-0"
+              >
+                <Play className="w-4 h-4" />
+                <span>{lang === 'ne' ? 'YouTube संगीत बजाउनुहोस्' : 'Play YouTube Music'}</span>
+              </button>
+              {activeYtMusicEmbed && (
+                <button
+                  type="button"
+                  onClick={() => setActiveYtMusicEmbed(null)}
+                  className="h-11 px-4 rounded-xl bg-stone-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                >
+                  {lang === 'ne' ? 'बन्द गर्नुहोस्' : 'Close Player'}
+                </button>
+              )}
+            </form>
+
+            {activeYtMusicEmbed && (
+              <div className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-slate-950">
+                <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-300">{activeYtTitle}</span>
+                  <span className="text-slate-400">YouTube Audio / Video Stream</span>
+                </div>
+                <div className="aspect-video max-h-[340px] w-full">
+                  <iframe
+                    src={activeYtMusicEmbed}
+                    title={activeYtTitle}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Radio Stations Grid */}
@@ -429,14 +623,180 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
       )}
 
       {/* =====================================================================
-          3. PHOTO & VIDEO GALLERY MODULE
+          3. PHOTO & WALLPAPER GALLERY MODULE (WITH PHOTO UPLOAD & WALLPAPER STUDIO)
          ===================================================================== */}
       {subTab === 'gallery' && (
         <div className="space-y-6">
+          {/* Top Action Banner: Upload Photo to Website + Make Bible Wallpaper */}
+          <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-red-800 dark:text-amber-400">
+                biblesandes.com · फोटो ग्यालरी र बाइबल वालपेपर स्टुडियो
+              </p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                {lang === 'ne'
+                  ? 'वेबसाइटमा फोटो अपलोड गर्नुहोस् वा बाइबल वचन वालपेपर बनाउनुहोस्'
+                  : 'Upload Photos to Website or Create Bible Verse Wallpapers'}
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={() => setShowUploadForm((prev) => !prev)}
+                className="h-10 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold inline-flex items-center gap-2 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                <span>
+                  {lang === 'ne'
+                    ? '+ वेबसाइटमा फोटो थप्नुहोस् (Upload Photo)'
+                    : '+ Upload Photo to Website'}
+                </span>
+              </button>
+
+              {onMakeWallpaperWithPhoto && (
+                <button
+                  onClick={() => onMakeWallpaperWithPhoto()}
+                  className="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold inline-flex items-center gap-2 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    {lang === 'ne'
+                      ? 'वालपेपर बनाउनुहोस् (Wallpaper Maker)'
+                      : 'Create Bible Wallpaper'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Interactive Photo Upload Form */}
+          {showUploadForm && (
+            <form
+              onSubmit={handleUploadSubmit}
+              className="bg-white dark:bg-slate-900 border-2 border-red-800/30 dark:border-amber-400/30 rounded-2xl p-6 space-y-4 shadow-md"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                  <span>
+                    {lang === 'ne'
+                      ? 'नयाँ तस्बिर वा वालपेपर वेबसाइटमा अपलोड गर्नुहोस् (biblesandes.com)'
+                      : 'Upload New Photo or Wallpaper to Website (biblesandes.com)'}
+                  </span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadForm(false)}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                >
+                  ✕ बन्द गर्नुहोस्
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                <div className="md:col-span-5 space-y-3">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {lang === 'ne' ? '१. फोटो छान्नुहोस् (Select Image File)' : '1. Choose Photo File'}
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleGalleryFileSelect}
+                    className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-red-800 file:text-white hover:file:bg-red-900 cursor-pointer"
+                  />
+                  {uploadPreviewDataUrl && (
+                    <div className="rounded-xl overflow-hidden border border-stone-200 dark:border-slate-800 h-44 bg-slate-950">
+                      <img
+                        src={uploadPreviewDataUrl}
+                        alt="Upload Preview"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="md:col-span-7 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        {lang === 'ne' ? 'तस्बिरको शीर्षक (Photo Title)' : 'Photo Title'}
+                      </label>
+                      <input
+                        type="text"
+                        value={uploadTitle}
+                        onChange={(e) => setUploadTitle(e.target.value)}
+                        placeholder={lang === 'ne' ? 'उदा: आराधना संगति / हिमाली चर्च...' : 'e.g. Sunday Worship / Himalayan Cross'}
+                        className="w-full h-10 px-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        {lang === 'ne' ? 'विधा (Category)' : 'Category'}
+                      </label>
+                      <select
+                        value={uploadCategory}
+                        onChange={(e) =>
+                          setUploadCategory(e.target.value as GalleryAlbum['category'])
+                        }
+                        className="w-full h-10 px-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs font-semibold"
+                      >
+                        <option value="worship">आराधना र वालपेपर (Worship & Wallpapers)</option>
+                        <option value="christian_camps">युवा शिविर (Christian Camps)</option>
+                        <option value="mission">मिसन र सेवा (Mission Activities)</option>
+                        <option value="seminars">सेमिनार र सम्मेलन (Seminars)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      {lang === 'ne' ? 'स्थान (Location)' : 'Location'}
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadLocation}
+                      onChange={(e) => setUploadLocation(e.target.value)}
+                      placeholder="काठमाडौँ, नेपाल"
+                      className="w-full h-10 px-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      {lang === 'ne' ? 'छोटो विवरण (Description)' : 'Description'}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={uploadDescription}
+                      onChange={(e) => setUploadDescription(e.target.value)}
+                      placeholder={lang === 'ne' ? 'तस्बिरको बारेमा छोटो विवरण लेख्नुहोस्...' : 'Short description of this photo...'}
+                      className="w-full p-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+
+                  <div className="pt-1 flex justify-end gap-2">
+                    <button
+                      type="submit"
+                      className="h-10 px-5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold inline-flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>
+                        {lang === 'ne'
+                          ? 'वेबसाइटमा प्रकाशित गर्नुहोस् (Publish Photo)'
+                          : 'Publish Photo to Website'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          )}
+
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             {[
-              { id: 'all', ne: 'सबै एल्बमहरू', en: 'All Albums' },
-              { id: 'worship', ne: 'आराधना (Worship)', en: 'Worship' },
+              { id: 'all', ne: 'सबै तस्बिर र एल्बमहरू', en: 'All Photos & Albums' },
+              { id: 'worship', ne: 'आराधना र वालपेपर (Worship & Wallpapers)', en: 'Worship & Wallpapers' },
               { id: 'christian_camps', ne: 'युवा शिविर (Camps)', en: 'Christian Camps' },
               { id: 'mission', ne: 'मिसन र सेवा (Mission)', en: 'Mission Activities' },
               { id: 'seminars', ne: 'सेमिनार (Seminars)', en: 'Seminars' },
@@ -494,18 +854,37 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="px-5 py-3.5 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                    <button
-                      onClick={() => setSelectedAlbum(album)}
-                      className="font-semibold text-red-800 dark:text-amber-400 hover:underline flex items-center gap-1.5"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      <span>{lang === 'ne' ? 'तस्बिरहरू हेर्नुहोस्' : 'Open Album Viewer'}</span>
-                    </button>
+                  <div className="px-5 py-3.5 border-t border-stone-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedAlbum(album)}
+                        className="font-semibold text-red-800 dark:text-amber-400 hover:underline flex items-center gap-1.5"
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                        <span>{lang === 'ne' ? 'हेर्नुहोस्' : 'View'}</span>
+                      </button>
+
+                      {onMakeWallpaperWithPhoto && (
+                        <button
+                          onClick={() => onMakeWallpaperWithPhoto(album.coverImage)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-900 dark:text-amber-300 font-bold hover:bg-amber-500/25 inline-flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>
+                            {lang === 'ne' ? 'यो फोटोमा वालपेपर बनाउनुहोस्' : 'Make Verse Wallpaper'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
                     <a
                       href={album.coverImage}
-                      download={`susamachar-album-${album.id}.svg`}
-                      onClick={() => onNotify(lang === 'ne' ? 'तस्बिर डाउनलोड सुरु भयो।' : 'Downloading album artwork...')}
+                      download={`biblesandes-photo-${album.id}.png`}
+                      onClick={() =>
+                        onNotify(
+                          lang === 'ne' ? 'तस्बिर डाउनलोड सुरु भयो।' : 'Downloading photo...'
+                        )
+                      }
                       className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-white"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -534,7 +913,24 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                   <p className="text-sm text-slate-600 dark:text-slate-300">
                     {lang === 'ne' ? selectedAlbum.descriptionNe : selectedAlbum.descriptionEn}
                   </p>
-                  <div className="pt-3 flex justify-end">
+                  <div className="pt-3 flex items-center justify-between gap-2">
+                    {onMakeWallpaperWithPhoto && (
+                      <button
+                        onClick={() => {
+                          const imgUrl = selectedAlbum.coverImage;
+                          setSelectedAlbum(null);
+                          onMakeWallpaperWithPhoto(imgUrl);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-red-800 text-white text-xs font-bold inline-flex items-center gap-1.5"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>
+                          {lang === 'ne'
+                            ? 'यो फोटोमा बाइबल वालपेपर बनाउनुहोस्'
+                            : 'Create Bible Wallpaper with this Photo'}
+                        </span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setSelectedAlbum(null)}
                       className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-semibold"
@@ -620,87 +1016,72 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
       )}
 
       {/* =====================================================================
-          5. NEPAL CHURCH DIRECTORY MODULE
+          5. NEPAL CHURCH DIRECTORY MODULE (KEPT EMPTY & ALL PHONE NUMBERS REMOVED)
          ===================================================================== */}
       {subTab === 'churches' && (
         <div className="space-y-5">
-          <div className="relative max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={churchSearch}
-              onChange={(e) => setChurchSearch(e.target.value)}
-              placeholder={lang === 'ne' ? 'सहर वा मण्डलीको नाम खोज्नुहोस् (उदा: ललितपुर, पोखरा, धरान)...' : 'Search church by city or name...'}
-              className="w-full h-10 pl-9 pr-4 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {churches
-              .filter(
-                (c) =>
-                  !churchSearch.trim() ||
-                  c.nameEn.toLowerCase().includes(churchSearch.toLowerCase()) ||
-                  c.nameNe.includes(churchSearch) ||
-                  c.cityEn.toLowerCase().includes(churchSearch.toLowerCase()) ||
-                  c.cityNe.includes(churchSearch)
-              )
-              .map((ch) => (
-                <div
-                  key={ch.id}
-                  className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-semibold text-red-800 dark:text-amber-400">
-                        {lang === 'ne' ? ch.cityNe : ch.cityEn} · {ch.province}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
-                        {lang === 'ne' ? ch.nameNe : ch.nameEn}
-                      </h3>
+          {churches.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-400 flex items-center justify-center mx-auto">
+                <Building2 className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                {lang === 'ne'
+                  ? 'मण्डली निर्देशिका (Church Directory)'
+                  : 'Nepal Church Directory'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                {lang === 'ne'
+                  ? 'यो पृष्ठ हाल खाली राखिएको छ। आधिकारिक मण्डली विवरणहरू पछि अद्यावधिक गरिनेछ।'
+                  : 'This page is currently kept empty. Official church listings will be updated soon.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {churches
+                .filter(
+                  (c) =>
+                    !churchSearch.trim() ||
+                    c.nameEn.toLowerCase().includes(churchSearch.toLowerCase()) ||
+                    c.nameNe.includes(churchSearch) ||
+                    c.cityEn.toLowerCase().includes(churchSearch.toLowerCase()) ||
+                    c.cityNe.includes(churchSearch)
+                )
+                .map((ch) => (
+                  <div
+                    key={ch.id}
+                    className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-semibold text-red-800 dark:text-amber-400">
+                          {lang === 'ne' ? ch.cityNe : ch.cityEn} · {ch.province}
+                        </span>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
+                          {lang === 'ne' ? ch.nameNe : ch.nameEn}
+                        </h3>
+                      </div>
+                      <Building2 className="w-5 h-5 text-slate-400 shrink-0" />
                     </div>
-                    <Building2 className="w-5 h-5 text-slate-400 shrink-0" />
-                  </div>
 
-                  <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-                    <p>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {lang === 'ne' ? 'वरिष्ठ पास्टर:' : 'Senior Pastor:'}
-                      </strong>{' '}
-                      {lang === 'ne' ? ch.pastorNameNe : ch.pastorNameEn}
-                    </p>
-                    <p>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {lang === 'ne' ? 'आराधना समय:' : 'Worship Service:'}
-                      </strong>{' '}
-                      {lang === 'ne' ? ch.serviceTimeNe : ch.serviceTimeEn}
-                    </p>
-                    <p>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {lang === 'ne' ? 'ठेगाना:' : 'Address:'}
-                      </strong>{' '}
-                      {lang === 'ne' ? ch.addressNe : ch.addressEn}
-                    </p>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                      <p>
+                        <strong className="text-slate-800 dark:text-slate-200">
+                          {lang === 'ne' ? 'आराधना समय:' : 'Worship Service:'}
+                        </strong>{' '}
+                        {lang === 'ne' ? ch.serviceTimeNe : ch.serviceTimeEn}
+                      </p>
+                      <p>
+                        <strong className="text-slate-800 dark:text-slate-200">
+                          {lang === 'ne' ? 'ठेगाना:' : 'Address:'}
+                        </strong>{' '}
+                        {lang === 'ne' ? ch.addressNe : ch.addressEn}
+                      </p>
+                    </div>
                   </div>
-
-                  <div className="pt-3 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between text-xs font-mono tabular-nums">
-                    <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                      <Phone className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
-                      {ch.phone}
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(`${ch.nameNe} (${ch.addressNe}) - ${ch.phone}`);
-                        onNotify(lang === 'ne' ? 'मण्डलीको सम्पर्क विवरण कपी गरियो।' : 'Church contact copied!');
-                      }}
-                      className="font-sans font-semibold text-red-800 dark:text-amber-400 hover:underline"
-                    >
-                      {lang === 'ne' ? 'सम्पर्क कपी' : 'Copy Contact'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
     </div>

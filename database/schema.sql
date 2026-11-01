@@ -124,55 +124,115 @@ CREATE TABLE IF NOT EXISTS `news` (
   CONSTRAINT `fk_news_author` FOREIGN KEY (`author_id`) REFERENCES `news_authors` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10. BIBLE TRANSLATIONS TABLE
+-- 10. BIBLE TRANSLATIONS TABLE (Nepali NNRV, Hindi FBI CC BY-SA 4.0, English KJV)
 CREATE TABLE IF NOT EXISTS `bible_translations` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `code` VARCHAR(20) NOT NULL UNIQUE,
-  `name_en` VARCHAR(120) NOT NULL,
-  `name_ne` VARCHAR(120) NOT NULL,
-  `language` ENUM('ne', 'en') NOT NULL,
+  `code` VARCHAR(32) NOT NULL UNIQUE,
+  `display_name` VARCHAR(120) NOT NULL,
+  `full_name` VARCHAR(200) NOT NULL,
+  `language` ENUM('ne', 'hi', 'en') NOT NULL,
+  `publisher` VARCHAR(180) NOT NULL,
+  `source_repository` VARCHAR(255) NOT NULL,
   `license_info` VARCHAR(255) NOT NULL,
-  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`)
+  `copyright_notice` TEXT NOT NULL,
+  `total_books` TINYINT UNSIGNED NOT NULL DEFAULT 66,
+  `total_chapters` SMALLINT UNSIGNED NOT NULL DEFAULT 1189,
+  `total_verses` INT UNSIGNED NOT NULL DEFAULT 31102,
+  `has_audio` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_bt_lang_enabled` (`language`, `is_enabled`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. BIBLE BOOKS TABLE
+-- 11. BIBLE BOOKS TABLE (Consistent 1..66 Protestant Book Mapping across NE, HI, EN)
 CREATE TABLE IF NOT EXISTS `bible_books` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `book_number` TINYINT UNSIGNED NOT NULL UNIQUE,
+  `usfm_code` VARCHAR(12) NOT NULL UNIQUE,
   `testament` ENUM('OT', 'NT') NOT NULL,
-  `name_en` VARCHAR(80) NOT NULL,
   `name_ne` VARCHAR(80) NOT NULL,
+  `name_hi` VARCHAR(80) NOT NULL,
+  `name_en` VARCHAR(80) NOT NULL,
   `chapters_count` SMALLINT UNSIGNED NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `idx_bible_books_testament` (`testament`, `book_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 12. BIBLE VERSES TABLE
-CREATE TABLE IF NOT EXISTS `bible_verses` (
+-- 12. BIBLE CHAPTERS TABLE (Per Translation, Book & Chapter Metadata + Audio URL)
+CREATE TABLE IF NOT EXISTS `bible_chapters` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `translation_id` INT UNSIGNED NOT NULL,
+  `book_id` INT UNSIGNED NOT NULL,
+  `chapter_number` SMALLINT UNSIGNED NOT NULL,
+  `chapter_title` VARCHAR(160) DEFAULT NULL,
+  `audio_url` VARCHAR(255) DEFAULT NULL,
+  `verses_count` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_trans_book_chapter` (`translation_id`, `book_id`, `chapter_number`),
+  CONSTRAINT `fk_bc_trans` FOREIGN KEY (`translation_id`) REFERENCES `bible_translations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_bc_book` FOREIGN KEY (`book_id`) REFERENCES `bible_books` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13. BIBLE VERSES TABLE (Aligned by translation_id + book_id + chapter + verse)
+CREATE TABLE IF NOT EXISTS `bible_verses` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `translation_id` INT UNSIGNED NOT NULL,
   `book_id` INT UNSIGNED NOT NULL,
   `chapter` SMALLINT UNSIGNED NOT NULL,
   `verse` SMALLINT UNSIGNED NOT NULL,
-  `text_ne` TEXT NOT NULL,
-  `text_en` TEXT NOT NULL,
+  `verse_text` TEXT NOT NULL,
+  `raw_verse_text` TEXT DEFAULT NULL,
+  `has_red_letter` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_book_chap_verse` (`book_id`, `chapter`, `verse`),
-  FULLTEXT KEY `ft_bible_text` (`text_ne`, `text_en`),
+  UNIQUE KEY `uk_trans_book_chap_verse` (`translation_id`, `book_id`, `chapter`, `verse`),
+  INDEX `idx_bv_lookup` (`book_id`, `chapter`, `verse`),
+  FULLTEXT KEY `ft_bible_verse_text` (`verse_text`),
+  CONSTRAINT `fk_bv_trans` FOREIGN KEY (`translation_id`) REFERENCES `bible_translations` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_bv_book` FOREIGN KEY (`book_id`) REFERENCES `bible_books` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 13. BIBLE BOOKMARKS & HIGHLIGHTS TABLE
+-- 13B. BIBLE BOOKMARKS & HIGHLIGHTS TABLE
 CREATE TABLE IF NOT EXISTS `bible_bookmarks` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
-  `verse_id` INT UNSIGNED NOT NULL,
+  `translation_code` VARCHAR(32) NOT NULL DEFAULT 'NE_NNRV',
+  `book_id` INT UNSIGNED NOT NULL,
+  `chapter` SMALLINT UNSIGNED NOT NULL,
+  `verse` SMALLINT UNSIGNED NOT NULL,
   `highlight_color` VARCHAR(24) DEFAULT 'gold',
   `note` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_bookmark` (`user_id`, `book_id`, `chapter`, `verse`),
   CONSTRAINT `fk_bb_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_bb_verse` FOREIGN KEY (`verse_id`) REFERENCES `bible_verses` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_bb_book` FOREIGN KEY (`book_id`) REFERENCES `bible_books` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13C. BIBLE READING HISTORY TABLE
+CREATE TABLE IF NOT EXISTS `bible_reading_history` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED DEFAULT NULL,
+  `translation_code` VARCHAR(32) NOT NULL DEFAULT 'NE_NNRV',
+  `reading_mode` VARCHAR(32) NOT NULL DEFAULT 'single',
+  `book_id` INT UNSIGNED NOT NULL,
+  `chapter` SMALLINT UNSIGNED NOT NULL,
+  `read_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_brh_user_time` (`user_id`, `read_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13D. USER BIBLE PREFERENCES TABLE
+CREATE TABLE IF NOT EXISTS `user_bible_preferences` (
+  `user_id` INT UNSIGNED NOT NULL,
+  `preferred_translation` VARCHAR(32) NOT NULL DEFAULT 'NE_NNRV',
+  `comparison_preset` VARCHAR(40) NOT NULL DEFAULT 'ne_hi_en',
+  `reading_mode` ENUM('single', 'parallel', 'tri', 'verse_compare', 'lang_switch') NOT NULL DEFAULT 'single',
+  `font_size` VARCHAR(16) NOT NULL DEFAULT 'lg',
+  `red_letter_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `fk_ubp_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 14. PRAYER REQUESTS TABLE
@@ -348,6 +408,30 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 25. CHRISTIAN HYMN LIBRARY TABLE (Nepali Hymns/Chorus & Hindi Songbooks)
+CREATE TABLE IF NOT EXISTS `hymn_library` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `hymn_number` VARCHAR(32) DEFAULT NULL,
+  `language` ENUM('ne', 'hi') NOT NULL DEFAULT 'ne',
+  `category` VARCHAR(80) NOT NULL,
+  `songbook` VARCHAR(160) NOT NULL,
+  `primary_title` VARCHAR(255) NOT NULL,
+  `secondary_title` VARCHAR(255) DEFAULT NULL,
+  `author` VARCHAR(160) NOT NULL DEFAULT 'Unknown',
+  `verses_json` JSON NOT NULL,
+  `lyrics_text` LONGTEXT NOT NULL,
+  `audio_url` VARCHAR(255) DEFAULT NULL,
+  `source_repo` VARCHAR(255) DEFAULT NULL,
+  `license_info` VARCHAR(255) DEFAULT NULL,
+  `status` ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_hymn_lang_cat` (`language`, `category`, `status`),
+  INDEX `idx_hymn_number` (`hymn_number`),
+  FULLTEXT KEY `ft_hymn_search` (`primary_title`, `secondary_title`, `lyrics_text`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =============================================================================
 -- SEED DATA FOR ROLES & INITIAL CONFIGURATION
 -- =============================================================================
@@ -359,6 +443,8 @@ INSERT IGNORE INTO `roles` (`id`, `role_key`, `role_name_en`, `role_name_ne`, `d
 (5, 'CALENDAR_ADMIN', 'Calendar Admin', 'पात्रो एडमिन', 'Manage BS/AD calendar events, festivals, and public holidays'),
 (6, 'FINANCE_ADMIN', 'Finance Content Admin', 'सुनचाँदी दर एडमिन', 'Manage daily gold & silver prices, sources, and history'),
 (7, 'GALLERY_ADMIN', 'Gallery Admin', 'ग्यालरी एडमिन', 'Manage Christian photo albums, images, and videos'),
-(8, 'PRAYER_ADMIN', 'Prayer Admin', 'प्रार्थना एडमिन', 'Moderate public prayer requests and manage prayer wall');
+(8, 'PRAYER_ADMIN', 'Prayer Admin', 'प्रार्थना एडमिन', 'Moderate public prayer requests and manage prayer wall'),
+(9, 'HYMN_ADMIN', 'Hymn Library Admin', 'भजन पुस्तकालय एडमिन', 'Add, edit, approve, and manage Nepali and Hindi Christian hymns');
 
 SET FOREIGN_KEY_CHECKS = 1;
+

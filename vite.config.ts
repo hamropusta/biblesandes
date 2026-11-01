@@ -44,6 +44,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
@@ -82,6 +83,20 @@ export default defineConfig(() => {
                 expiration: {
                   maxEntries: 50,
                   maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /\/bible-quiz\/.*\.json$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'biblesandes-quiz-cache',
+                expiration: {
+                  maxEntries: 70,
+                  maxAgeSeconds: 60 * 60 * 24 * 90,
                 },
                 cacheableResponse: {
                   statuses: [0, 200],

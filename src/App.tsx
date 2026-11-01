@@ -3,48 +3,65 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Activity,
   ArrowLeftRight,
   Bell,
+  BellRing,
   BookOpen,
   Building2,
   Calendar,
   Coins,
   Copy,
+  DollarSign,
   Download,
+  Facebook,
   FileText,
+  Film,
   Globe,
   HeartHandshake,
   Home,
   Image as ImageIcon,
   Info,
+  Instagram,
+  Keyboard,
   Lock,
   Menu,
   MessageCircle,
+  Mic,
   Moon,
   Music,
   Newspaper,
   Pause,
+  Phone,
   Play,
+  Plus,
   Radio,
   Search,
   Send,
   Share2,
   Shield,
   Sparkles,
+  StickyNote,
   Sun,
+  Trophy,
   User,
+  Video,
   Volume2,
   WifiOff,
   Wrench,
   X,
+  Youtube,
 } from 'lucide-react';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { BhajanModuleView } from './components/BhajanModuleView';
 import { BibleModuleView } from './components/BibleModuleView';
+import { BibleQuizView } from './components/BibleQuizView';
 import { CalendarConverterView } from './components/CalendarConverterView';
 import { CommunityModulesView } from './components/CommunityModulesView';
+import { LifeNotesPodcastsView } from './components/LifeNotesPodcastsView';
+import { NepaliUnicodeView } from './components/NepaliUnicodeView';
 import { NewsPortalView } from './components/NewsPortalView';
 import { PrayerWallView } from './components/PrayerWallView';
 import { VerseImageShareModal } from './components/VerseImageShareModal';
@@ -78,7 +95,9 @@ import { useOnlineStatus, usePWAInstall } from './utils/usePWAInstall';
 type PrimarySection =
   | 'home'
   | 'bible'
+  | 'quiz'
   | 'bhajan'
+  | 'daily_word'
   | 'calendar'
   | 'converter'
   | 'news'
@@ -88,23 +107,110 @@ type PrimarySection =
   | 'gallery'
   | 'events'
   | 'churches'
+  | 'notes'
+  | 'podcasts'
+  | 'healthtips'
+  | 'forex'
+  | 'unicode'
   | 'admin';
+
+export interface HomeVideoItem {
+  id: string;
+  titleNe: string;
+  titleEn: string;
+  youtubeEmbedUrl: string;
+  type: 'video' | 'short';
+  speakerNe: string;
+}
+
+const DEFAULT_HOME_VIDEOS: HomeVideoItem[] = [
+  {
+    id: 'vid-1',
+    titleNe: 'येशू ख्रीष्टको जीवनी, क्रूसको प्रेम र मुक्तिको सन्देश (The Gospel of Jesus)',
+    titleEn: 'The Gospel of Jesus Christ & Living Hope',
+    youtubeEmbedUrl: 'https://www.youtube.com/embed/2J46a9H99UU',
+    type: 'video',
+    speakerNe: 'सुसमाचार भिडियो सेवा',
+  },
+  {
+    id: 'vid-2',
+    titleNe: 'नेपाली ख्रीष्टिय आराधना र भजन संगति (Nepali Christian Worship)',
+    titleEn: 'Nepali Christian Worship & Praise Session',
+    youtubeEmbedUrl: 'https://www.youtube.com/embed/jfKfPfyJRdk',
+    type: 'video',
+    speakerNe: 'सुसमाचार आराधना सेवा',
+  },
+  {
+    id: 'short-1',
+    titleNe: 'आजको १ मिनेट बाइबल वचन — यूहन्ना ३:१६ (Bible Short)',
+    titleEn: '1-Minute Daily Scripture — John 3:16',
+    youtubeEmbedUrl: 'https://www.youtube.com/embed/DWcJFNfaw9c',
+    type: 'short',
+    speakerNe: 'बाइबल सन्देश Shorts',
+  },
+  {
+    id: 'short-2',
+    titleNe: 'भजनसंग्रह २३ — परमप्रभु मेरो गोठाला हुनुहुन्छ (Psalm 23 Short)',
+    titleEn: 'Psalm 23 — The Lord is My Shepherd Short',
+    youtubeEmbedUrl: 'https://www.youtube.com/embed/5qap5aO4i9A',
+    type: 'short',
+    speakerNe: 'सुसमाचार Shorts',
+  },
+];
 
 export default function App() {
   const [lang, setLang] = useState<'ne' | 'en'>('ne');
   const [darkMode, setDarkMode] = useState<boolean>(false);
-  const [activeSection, setActiveSection] = useState<PrimarySection>('home');
+  const [activeSection, setActiveSection] = useState<PrimarySection>(() => {
+    if (typeof window !== 'undefined') {
+      const pathOrHash = (window.location.pathname + window.location.hash).toLowerCase();
+      if (pathOrHash.includes('nepali-unicode') || pathOrHash.includes('unicode')) {
+        return 'unicode';
+      }
+    }
+    return 'home';
+  });
 
-  // Application Data State (synced with /api/* backend)
+  // Application Data State (pre-written Christian news removed; only user-posted items when added)
   const [news, setNews] = useState<NewsArticle[]>(INITIAL_NEWS_ARTICLES);
   const [prayers, setPrayers] = useState<PrayerRequestItem[]>(INITIAL_PRAYER_REQUESTS);
   const [radioStations, setRadioStations] = useState<RadioStation[]>(INITIAL_RADIO_STATIONS);
   const [rates, setRates] = useState<GoldSilverRateData>(INITIAL_GOLD_SILVER_RATES);
   const [calendarEvents, setCalendarEvents] = useState(INITIAL_CALENDAR_EVENTS);
-  const [galleryAlbums] = useState<GalleryAlbum[]>(INITIAL_GALLERY_ALBUMS);
+  const [galleryAlbums, setGalleryAlbums] = useState<GalleryAlbum[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('susamachar_uploaded_photos') || '[]');
+      if (Array.isArray(saved) && saved.length > 0) {
+        return [...saved, ...INITIAL_GALLERY_ALBUMS];
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_GALLERY_ALBUMS;
+  });
+  const [wallpaperBgUrl, setWallpaperBgUrl] = useState<string | null>(null);
   const [events] = useState<ChristianEventItem[]>(INITIAL_CHRISTIAN_EVENTS);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(INITIAL_AUDIT_LOGS);
   const [currentAdmin, setCurrentAdmin] = useState<AdminUserRecord>(ADMIN_USERS[0]);
+
+  // Home Page Videos & Short Videos State
+  const [homeVideos, setHomeVideos] = useState<HomeVideoItem[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('susamachar_home_videos') || '[]');
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch {
+      // ignore
+    }
+    return DEFAULT_HOME_VIDEOS;
+  });
+  const [showAddHomeVideoForm, setShowAddHomeVideoForm] = useState<boolean>(false);
+  const [newVideoTitle, setNewVideoTitle] = useState<string>('');
+  const [newVideoUrl, setNewVideoUrl] = useState<string>('');
+  const [newVideoType, setNewVideoType] = useState<'video' | 'short'>('video');
+
+  // Home Page FM Radio YouTube Music Link Player State
+  const [homeYtMusicUrl, setHomeYtMusicUrl] = useState<string>('');
+  const [activeHomeYtEmbed, setActiveHomeYtEmbed] = useState<string | null>(null);
 
   // User Personalization & Auth State
   const [bookmarks, setBookmarks] = useState<string[]>(() => {
@@ -117,10 +223,11 @@ export default function App() {
   const [savedNewsIds, setSavedNewsIds] = useState<number[]>([1]);
   const [favoriteStationIds, setFavoriteStationIds] = useState<number[]>([1]);
 
-  // Live FM Radio Audio State
+  // Live FM Radio Audio State + Real HTML5 Audio Stream Element
   const [activeStationId, setActiveStationId] = useState<number | null>(null);
   const [isPlayingRadio, setIsPlayingRadio] = useState<boolean>(false);
   const [radioVolume, setRadioVolume] = useState<number>(0.75);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Modals & Drawers
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
@@ -137,7 +244,7 @@ export default function App() {
   const [aiMessages, setAiMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
     {
       role: 'assistant',
-      text: 'जय मसीह! म सुसमाचार AI बाइबल सहायक हुँ। बाइबल पद, दैनिक मनन, प्रार्थना वा इसाई जीवनसम्बन्धी कुनै पनि प्रश्न सोध्नुहोस्।\n\nJai Masih! I am the Susamachar AI Bible Assistant. Ask me any question about Scripture, devotionals, prayer, or Christian living.',
+      text: 'जय मसीह! म सुसमाचार बाइबलीय AI सहायक हुँ। मलाई केवल पवित्र बाइबल, प्रभु येशू ख्रीष्टको जीवनी र शिक्षा, मुक्तिको योजना (Salvation) र प्रार्थनासम्बन्धी बाइबलीय विषयमा मात्र लेख्न र जवाफ दिन अनुमति छ।\n\nJai Masih! I am the Susamachar Biblical AI Assistant. I am strictly authorized to answer only questions about the Holy Bible, Lord Jesus Christ, Salvation, and Biblical truth.',
     },
   ]);
   const [shareHomeVerse, setShareHomeVerse] = useState<BibleVerse | null>(null);
@@ -162,7 +269,7 @@ export default function App() {
           role: 'assistant',
           text:
             data.reply ||
-            'परमेश्वरको वचनले भन्दछ: "परमप्रभु मेरो गोठाला हुनुहुन्छ; मलाई केहीको खाँचो हुँदैन।" (भजनसंग्रह २३:१)',
+            'येशूले भन्नुभयो: "बाटो, सत्य र जीवन म नै हुँ। मद्वारा बाहेक कोही पनि पिताकहाँ आउन सक्दैन।" (यूहन्ना १४:६)',
         },
       ]);
     } catch {
@@ -170,7 +277,7 @@ export default function App() {
         ...prev,
         {
           role: 'assistant',
-          text: 'परमेश्वरको वचनले भन्दछ: "तपाईंको वचन मेरो खुट्टाको निम्ति बत्ती र मेरो बाटोको निम्ति उज्यालो हो।" (भजनसंग्रह ११९:१०५ / Psalm 119:105)',
+          text: 'परमेश्वरको वचनले भन्दछ: "किनभने परमेश्वरले संसारलाई यस्तो प्रेम गर्नुभयो, कि उहाँले आफ्ना एकमात्र पुत्र दिनुभयो, ताकि उहाँमाथि विश्वास गर्ने कोही पनि नाश नहोस्, तर त्यसले अनन्त जीवन पाओस्।" (यूहन्ना ३:१६ / John 3:16)',
         },
       ]);
     } finally {
@@ -201,7 +308,30 @@ export default function App() {
 
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const isOnline = useOnlineStatus();
-  const todayBS = useMemo(() => convertADToBS(2026, 10, 31), []);
+  const nowDate = useMemo(() => new Date(), []);
+  const todayBS = useMemo(
+    () => convertADToBS(nowDate.getFullYear(), nowDate.getMonth() + 1, nowDate.getDate()),
+    [nowDate]
+  );
+  const todayADFormatted = useMemo(
+    () =>
+      nowDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [nowDate]
+  );
+  const todayADShort = useMemo(
+    () =>
+      nowDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [nowDate]
+  );
 
   // Sync dark mode class on <html>
   useEffect(() => {
@@ -224,7 +354,9 @@ export default function App() {
       fetch('/api/admin/dashboard').then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([newsRes, prayersRes, ratesRes, radioRes, calRes, dashRes]) => {
-        if (newsRes?.articles) setNews(newsRes.articles);
+        if (newsRes?.articles) {
+          setNews(newsRes.articles.filter((a: NewsArticle) => a.id > 100));
+        }
         if (prayersRes?.prayers) setPrayers(prayersRes.prayers);
         if (ratesRes?.rates) setRates(ratesRes.rates);
         if (radioRes?.stations) setRadioStations(radioRes.stations);
@@ -243,26 +375,120 @@ export default function App() {
     }, 3200);
   };
 
-  // Radio Playback Handler
+  const extractYoutubeEmbedUrl = (rawUrl: string): string | null => {
+    const url = rawUrl.trim();
+    if (!url) return null;
+    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+    if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+    const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/);
+    if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+    const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+    if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+    const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+    if (embedMatch) return `https://www.youtube.com/embed/${embedMatch[1]}`;
+    return null;
+  };
+
+  const handleAddHomeVideo = (e: React.FormEvent) => {
+    e.preventDefault();
+    const embed = extractYoutubeEmbedUrl(newVideoUrl);
+    if (!embed) {
+      notify(lang === 'ne' ? 'कृपया सही YouTube भिडियो वा Short लिङ्क राख्नुहोस्।' : 'Please enter a valid YouTube Video or Short link.');
+      return;
+    }
+    const isShortUrl = newVideoUrl.includes('/shorts/') || newVideoType === 'short';
+    const item: HomeVideoItem = {
+      id: `vid-${Date.now()}`,
+      titleNe: newVideoTitle.trim() || (isShortUrl ? 'बाइबल सन्देश YouTube Short' : 'सुसमाचार YouTube भिडियो'),
+      titleEn: newVideoTitle.trim() || (isShortUrl ? 'Bible Sandes YouTube Short' : 'Susamachar YouTube Video'),
+      youtubeEmbedUrl: embed,
+      type: isShortUrl ? 'short' : 'video',
+      speakerNe: 'सुसमाचार मिडिया',
+    };
+    setHomeVideos((prev) => {
+      const updated = [item, ...prev];
+      try {
+        localStorage.setItem('susamachar_home_videos', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+    setNewVideoTitle('');
+    setNewVideoUrl('');
+    setShowAddHomeVideoForm(false);
+    notify(lang === 'ne' ? 'भिडियो गृहपृष्ठमा सफलतापूर्वक थपियो!' : 'Video added to Home page!');
+  };
+
+  const handlePlayHomeYoutubeMusic = (e: React.FormEvent) => {
+    e.preventDefault();
+    const embed = extractYoutubeEmbedUrl(homeYtMusicUrl);
+    if (!embed) {
+      notify(lang === 'ne' ? 'कृपया सही YouTube संगीत लिङ्क राख्नुहोस्।' : 'Please enter a valid YouTube music link.');
+      return;
+    }
+    // Pause FM stream if playing
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    sacredRadioEngine.stop();
+    setIsPlayingRadio(false);
+    setActiveHomeYtEmbed(`${embed}?autoplay=1`);
+    notify(lang === 'ne' ? 'YouTube भजन तथा संगीत बज्दैछ!' : 'Playing YouTube worship music!');
+  };
+
+  // Real Live FM Radio Playback Handler (HTML5 Audio Stream + Sacred Audio Fallback)
   const handlePlayStation = (station: RadioStation) => {
     if (activeStationId === station.id && isPlayingRadio) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       sacredRadioEngine.stop();
       setIsPlayingRadio(false);
       notify(lang === 'ne' ? `${station.nameNe} रोकियो।` : `Paused ${station.nameEn}`);
     } else {
+      setActiveHomeYtEmbed(null);
       setActiveStationId(station.id);
       setIsPlayingRadio(true);
-      sacredRadioEngine.start(station.melodyPreset, radioVolume);
-      notify(
-        lang === 'ne'
-          ? `प्रत्यक्ष प्रसारण: ${station.nameNe} (${station.frequency})`
-          : `Now Playing: ${station.nameEn} (${station.frequency})`
-      );
+      sacredRadioEngine.stop();
+
+      if (audioRef.current && station.streamUrl) {
+        audioRef.current.src = station.streamUrl;
+        audioRef.current.volume = radioVolume;
+        audioRef.current
+          .play()
+          .then(() => {
+            notify(
+              lang === 'ne'
+                ? `प्रत्यक्ष एफ.एम. प्रसारण: ${station.nameNe} (${station.frequency})`
+                : `Live FM Stream: ${station.nameEn} (${station.frequency})`
+            );
+          })
+          .catch(() => {
+            // Automatic fallback to built-in worship synthesizer if stream is blocked/offline
+            sacredRadioEngine.start(station.melodyPreset, radioVolume);
+            notify(
+              lang === 'ne'
+                ? `प्रत्यक्ष आराधना प्रसारण: ${station.nameNe} (${station.frequency})`
+                : `Now Playing: ${station.nameEn} (${station.frequency})`
+            );
+          });
+      } else {
+        sacredRadioEngine.start(station.melodyPreset, radioVolume);
+        notify(
+          lang === 'ne'
+            ? `प्रत्यक्ष प्रसारण: ${station.nameNe} (${station.frequency})`
+            : `Now Playing: ${station.nameEn} (${station.frequency})`
+        );
+      }
     }
   };
 
   const handleVolumeChange = (vol: number) => {
     setRadioVolume(vol);
+    if (audioRef.current) {
+      audioRef.current.volume = vol;
+    }
     sacredRadioEngine.setVolume(vol);
   };
 
@@ -278,6 +504,53 @@ export default function App() {
   const handleToggleSaveNews = (id: number) => {
     setSavedNewsIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
     notify(lang === 'ne' ? 'समाचार बुकमार्क सुरक्षित गरियो।' : 'News article bookmark updated.');
+  };
+
+  const handleAddGalleryPhoto = (payload: {
+    titleNe: string;
+    titleEn: string;
+    category: GalleryAlbum['category'];
+    locationNe: string;
+    locationEn: string;
+    coverImage: string;
+    descriptionNe: string;
+    descriptionEn: string;
+  }) => {
+    const newAlbum: GalleryAlbum = {
+      id: Date.now(),
+      titleNe: payload.titleNe,
+      titleEn: payload.titleEn,
+      category: payload.category,
+      locationNe: payload.locationNe,
+      locationEn: payload.locationEn,
+      dateBs: todayBS.formattedNe,
+      photosCount: 1,
+      coverImage: payload.coverImage,
+      descriptionNe: payload.descriptionNe,
+      descriptionEn: payload.descriptionEn,
+    };
+    setGalleryAlbums((prev) => {
+      const updated = [newAlbum, ...prev];
+      try {
+        const customOnly = updated.filter(
+          (a) => !INITIAL_GALLERY_ALBUMS.some((init) => init.id === a.id)
+        );
+        localStorage.setItem('susamachar_uploaded_photos', JSON.stringify(customOnly.slice(0, 12)));
+      } catch {
+        // ignore storage quota
+      }
+      return updated;
+    });
+    notify(
+      lang === 'ne'
+        ? 'तस्बिर सफलतापूर्वक वेबसाइट ग्यालरीमा थपियो! (biblesandes.com)'
+        : 'Photo published to website gallery! (biblesandes.com)'
+    );
+  };
+
+  const handleOpenWallpaperWithPhoto = (bgUrl?: string) => {
+    setWallpaperBgUrl(bgUrl || null);
+    setShareHomeVerse(dailyVerse);
   };
 
   const handleSubmitPrayer = async (data: {
@@ -330,21 +603,60 @@ export default function App() {
     }
   };
 
-  // Admin handlers
+  // Create News / Social Post / YouTube Video / YouTube Short handler
   const handleCreateNews = async (payload: Partial<NewsArticle>) => {
+    const fallbackArticle: NewsArticle = {
+      id: Date.now(),
+      slug: `post-${Date.now()}`,
+      categorySlug: payload.categorySlug || 'christian-news-nepal',
+      categoryNameEn: payload.categoryNameEn || 'Christian News Nepal',
+      categoryNameNe: payload.categoryNameNe || 'नेपाल इसाई समाचार',
+      portalSlug: payload.portalSlug || 'hamropusta',
+      portalNameNe: payload.portalNameNe || 'बाइबल सन्देश (Bible Sandes)',
+      portalNameEn: payload.portalNameEn || 'Bible Sandes',
+      sourceUrl: payload.sourceUrl || 'https://biblesandes.com',
+      youtubeUrl: payload.youtubeUrl,
+      postType: payload.postType || 'social',
+      likesCount: payload.likesCount ?? 1,
+      authorNameEn: payload.authorNameEn || 'Bible Sandes',
+      authorNameNe: payload.authorNameNe || 'बाइबल सन्देश',
+      authorRoleEn: payload.authorRoleEn || 'Editorial Desk',
+      titleEn: payload.titleEn || payload.titleNe || 'Bible Sandes Post',
+      titleNe: payload.titleNe || payload.titleEn || 'बाइबल सन्देश पोस्ट',
+      summaryEn: payload.summaryEn || payload.summaryNe || '',
+      summaryNe: payload.summaryNe || payload.summaryEn || '',
+      contentEn: payload.contentEn || payload.contentNe || '',
+      contentNe: payload.contentNe || payload.contentEn || '',
+      featuredImage: payload.featuredImage || '/assets/aistudio/image_fed91b50.png',
+      isFeatured: true,
+      isTrending: true,
+      status: 'published',
+      viewsCount: 1,
+      publishedAtAd: payload.publishedAtAd || '2026-10-31',
+      publishedAtBs: payload.publishedAtBs || todayBS.formattedNe,
+    };
+
+    setNews((prev) => {
+      const next = [fallbackArticle, ...prev];
+      try {
+        const customOnly = next.filter(
+          (item) => !INITIAL_NEWS_ARTICLES.some((init) => init.id === item.id)
+        );
+        localStorage.setItem('biblesandes_social_posts', JSON.stringify(customOnly.slice(0, 20)));
+      } catch {
+        // ignore quota
+      }
+      return next;
+    });
+
     try {
-      const res = await fetch('/api/admin/news', {
+      await fetch('/api/admin/news', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        const json = await res.json();
-        setNews((prev) => [json.article, ...prev]);
-        return;
-      }
     } catch {
-      // fallback
+      // already updated in local state
     }
   };
 
@@ -495,47 +807,50 @@ export default function App() {
 
   const dailyVerse = CURATED_BIBLE_VERSES.find((v) => v.id === '43-3-16') || CURATED_BIBLE_VERSES[0];
 
-  // All Home Screen Modules
-  const homeModulesGrid = [
-    { id: 'bible', icon: BookOpen, ne: 'पवित्र बाइबल', en: 'Bible Reading', descNe: 'नेपाली र अंग्रेजी ६६ पुस्तक', descEn: 'Nepali & English 66 Books', color: 'text-red-800 dark:text-amber-400' },
-    { id: 'bhajan', icon: Music, ne: 'ख्रीष्टिय भजन', en: 'Christian Bhajan', descNe: 'भजन, कोरस र गितार कर्ड', descEn: 'Nepali Hymns, Lyrics & Chords', color: 'text-red-800 dark:text-amber-400' },
-    { id: 'prayer', icon: HeartHandshake, ne: 'प्रार्थना पर्खाल', en: 'Prayer Wall', descNe: 'प्रार्थना निवेदन र मध्यस्थता', descEn: 'Submit & Pray Together', color: 'text-blue-800 dark:text-sky-400' },
-    { id: 'calendar', icon: Calendar, ne: 'नेपाली पात्रो', en: 'Nepali Calendar', descNe: 'वि.सं. २०८३ पर्व र बिदा', descEn: 'BS/AD Festivals & Holidays', color: 'text-red-800 dark:text-amber-400' },
-    { id: 'converter', icon: ArrowLeftRight, ne: 'मिति परिवर्तन', en: 'Date Converter', descNe: 'BS ↔ AD यथार्थ रूपान्तरण', descEn: 'Exact BS to AD Converter', color: 'text-emerald-700 dark:text-emerald-400' },
-    { id: 'news', icon: Newspaper, ne: 'इसाई समाचार', en: 'Christian News', descNe: '१० विधाका ताजा समाचार', descEn: '10 Categories Portal', color: 'text-blue-800 dark:text-sky-400' },
-    { id: 'radio', icon: Radio, ne: 'एफ.एम. रेडियो', en: 'FM Radio', descNe: '२४ घण्टे भजन र वचन', descEn: 'Live Christian Stations', color: 'text-red-800 dark:text-amber-400' },
-    { id: 'rates', icon: Coins, ne: 'सुनचाँदी दर', en: 'Gold & Silver Rates', descNe: 'तोला र ग्राममा दैनिक मूल्य', descEn: 'Daily NPR Tola & Gram', color: 'text-amber-600 dark:text-amber-400' },
-    { id: 'gallery', icon: ImageIcon, ne: 'फोटो ग्यालरी', en: 'Photo Gallery', descNe: 'आराधना र सेवाका तस्बिर', descEn: 'Albums & Event Photos', color: 'text-blue-800 dark:text-sky-400' },
-    { id: 'events', icon: Bell, ne: 'इसाई कार्यक्रम', en: 'Christian Events', descNe: 'सम्मेलन, सेमिनार र क्याम्प', descEn: 'Conferences & Seminars', color: 'text-emerald-700 dark:text-emerald-400' },
-    { id: 'churches', icon: Building2, ne: 'मण्डली निर्देशिका', en: 'Church Directory', descNe: 'नेपालका स्थानीय मण्डलीहरू', descEn: 'Churches Across Nepal', color: 'text-red-800 dark:text-amber-400' },
-    { id: 'admin', icon: Shield, ne: 'एडमिन ड्यासबोर्ड', en: 'Multi-Admin CMS', descNe: '८ भूमिका र सुरक्षा नियन्त्रण', descEn: '8-Role RBAC & SQL/APK', color: 'text-slate-800 dark:text-slate-200' },
-  ];
-
   return (
     <div className="min-h-screen flex flex-col bg-stone-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
+      {/* Hidden Real HTML5 Audio Element for Live FM Radio Streams */}
+      <audio ref={audioRef} className="hidden" preload="none" />
+
       {/* =====================================================================
-          HEADER SYSTEM (Desktop Top Utility Bar + Main Navbar | Mobile 2-Row Header)
+          HEADER SYSTEM (Redesigned Clean Desktop & Mobile Header with Polished Date Badge)
          ===================================================================== */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-stone-200 dark:border-slate-800 shadow-xs">
         {/* -----------------------------------------------------------------
             DESKTOP VIEW (md and up):
-            1. Top Utility Bar ABOVE Navbar: Date on left | Search, Eng/Nep, Notifications, Account on right
-            2. Main Navbar BELOW Top Bar: Logo, Navigation Links, Primary CTA
+            1. Top Utility Bar: Polished Bilingual Date Pill on left | Search, Eng/Nep, Notifications, Account, About on right
+            2. Main Navbar: Logo, Navigation Links, Primary CTA
            ----------------------------------------------------------------- */}
         <div className="hidden md:block">
-          {/* Row 1 (Above Main Navbar): Clean Utility Bar */}
-          <div className="bg-stone-100/90 dark:bg-slate-950/90 border-b border-stone-200/80 dark:border-slate-800/80">
+          {/* Row 1: Clean Utility Bar — Single-line non-wrapping Nep/Eng Date on left | Search, Eng/Nep, Alerts, Account, Theme on right */}
+          <div className="bg-gradient-to-r from-stone-100 via-amber-50/40 to-stone-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-stone-200/80 dark:border-slate-800/80">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between gap-4 text-xs">
-              {/* Left: Nepali Date */}
-              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <Calendar className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
-                <span className="font-mono tabular-nums font-semibold text-slate-800 dark:text-slate-200">
-                  {lang === 'ne' ? todayBS.formattedNe : todayBS.formattedEn}
-                </span>
+              {/* Left: Single-line Nep/Eng Date Pill (never wraps) */}
+              <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 whitespace-nowrap shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                  {lang === 'ne' ? (
+                    <span className="font-bold text-red-900 dark:text-amber-300 whitespace-nowrap">
+                      वि.सं. {todayBS.formattedNe}
+                      <span className="mx-1.5 text-stone-300 dark:text-slate-600">|</span>
+                      <span className="font-mono font-medium text-slate-600 dark:text-slate-300">
+                        {todayADShort}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="font-bold text-slate-800 dark:text-amber-300 whitespace-nowrap">
+                      {todayADFormatted}
+                      <span className="mx-1.5 text-stone-300 dark:text-slate-600">|</span>
+                      <span className="font-medium text-red-800 dark:text-amber-400">
+                        BS {todayBS.formattedEn}
+                      </span>
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Right: Search, Eng/Nep, Notifications, Account (+ Theme toggle) */}
-              <div className="flex items-center gap-2.5">
+              {/* Right: Clean Utility Controls (Search, Eng/Nep, Notifications, Account, Theme) */}
+              <div className="flex items-center gap-2 shrink-0">
                 {/* Search */}
                 <button
                   onClick={() => setShowSearchModal(true)}
@@ -553,7 +868,7 @@ export default function App() {
                 >
                   <Globe className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
                   <span>
-                    <span className={lang === 'en' ? 'text-red-800 dark:text-amber-400 font-bold' : ' opacity-75'}>
+                    <span className={lang === 'en' ? 'text-red-800 dark:text-amber-400 font-bold' : 'opacity-75'}>
                       Eng
                     </span>
                     <span className="mx-1 text-slate-400">/</span>
@@ -618,8 +933,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Row 2 (Main Desktop Navbar): Logo, Navigation Links, Primary CTA */}
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 h-16">
+          {/* Row 2 (Main Desktop Navbar): Logo, Navigation Links, Primary CTA (आजको बचन) */}
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 lg:gap-6 px-4 sm:px-6 h-16">
             {/* Brand Logo + Wordmark */}
             <a
               href="#home"
@@ -627,23 +942,33 @@ export default function App() {
                 e.preventDefault();
                 setActiveSection('home');
               }}
-              className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-red-900 dark:text-amber-400 whitespace-nowrap shrink-0"
+              className="flex items-center gap-2.5 text-lg lg:text-xl font-bold tracking-tight text-red-900 dark:text-amber-400 whitespace-nowrap shrink-0"
             >
-              <span className="w-9 h-9 rounded-xl bg-red-800 text-amber-300 flex items-center justify-center font-serif text-lg shadow-xs shrink-0">
-                ✝
-              </span>
-              <span>सुसमाचार · Susamachar</span>
+              <img
+                src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                alt="बाइबल सन्देश · Bible Sandesh Logo"
+                className="h-12 w-auto object-contain shrink-0 drop-shadow-2xs"
+              />
+              <div className="leading-tight hidden xl:block">
+                <span className="block">सुसमाचार · बाइबल सन्देश</span>
+                <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 tracking-normal">
+                  Bible Sandesh • Christian Platform
+                </span>
+              </div>
             </a>
 
             {/* Navigation Links with Icons & Names (Home, Bible, Bhajan, Prayer, News, Church) */}
-            <nav className="flex items-center gap-2 lg:gap-4 text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-300 overflow-x-auto">
+            <nav
+              aria-label="Main Navigation"
+              className="flex items-center justify-center gap-1 lg:gap-1.5 text-xs lg:text-sm font-semibold text-slate-700 dark:text-slate-200"
+            >
               {[
-                { id: 'home', icon: Home, ne: 'गृहपृष्ठ (Home)', en: 'Home' },
-                { id: 'bible', icon: BookOpen, ne: 'बाइबल (Bible)', en: 'Bible' },
-                { id: 'bhajan', icon: Music, ne: 'भजन (Bhajan)', en: 'Bhajan' },
-                { id: 'prayer', icon: HeartHandshake, ne: 'प्रार्थना (Prayer)', en: 'Prayer' },
-                { id: 'news', icon: Newspaper, ne: 'समाचार (News)', en: 'News' },
-                { id: 'churches', icon: Building2, ne: 'मण्डली (Church)', en: 'Church' },
+                { id: 'home', icon: Home, ne: 'गृहपृष्ठ', en: 'Home' },
+                { id: 'bible', icon: BookOpen, ne: 'बाइबल', en: 'Bible' },
+                { id: 'bhajan', icon: Music, ne: 'भजन', en: 'Bhajan' },
+                { id: 'prayer', icon: HeartHandshake, ne: 'प्रार्थना', en: 'Prayer' },
+                { id: 'news', icon: Newspaper, ne: 'समाचार', en: 'News' },
+                { id: 'churches', icon: Building2, ne: 'मण्डली', en: 'Church' },
               ].map((item) => {
                 const IconComp = item.icon;
                 const isActive = activeSection === item.id;
@@ -651,10 +976,10 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => setActiveSection(item.id as PrimarySection)}
-                    className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                    className={`px-3 lg:px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                       isActive
-                        ? 'bg-red-800/10 text-red-800 dark:bg-amber-400/15 dark:text-amber-400 font-bold'
-                        : 'hover:text-red-800 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800/60'
+                        ? 'bg-red-800 text-white dark:bg-amber-400 dark:text-slate-950 font-bold shadow-xs'
+                        : 'hover:text-red-800 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     <IconComp className="w-4 h-4 shrink-0" />
@@ -664,14 +989,30 @@ export default function App() {
               })}
             </nav>
 
-            {/* Primary CTA Button */}
+            {/* Primary Right CTA Buttons: बाइबल क्विज (Bible Quiz) + आजको बचन (Today's Word Page) */}
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setActiveSection('calendar')}
-                className="px-3.5 py-2 text-xs font-semibold text-white bg-red-800 hover:bg-red-900 rounded-xl transition-colors whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5"
+                onClick={() => setActiveSection('quiz')}
+                className={`px-3.5 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 border ${
+                  activeSection === 'quiz'
+                    ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs'
+                    : 'bg-stone-100 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-red-800 dark:hover:border-amber-400'
+                }`}
               >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>{lang === 'ne' ? 'नेपाली पात्रो' : 'Calendar'}</span>
+                <Trophy className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                <span>{lang === 'ne' ? 'बाइबल क्विज' : 'Bible Quiz'}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSection('daily_word')}
+                className={`px-4 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 shadow-xs ${
+                  activeSection === 'daily_word'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-red-800/30'
+                    : 'text-white bg-red-800 hover:bg-red-900'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                <span>{lang === 'ne' ? 'आजको बचन' : 'Today’s Word'}</span>
               </button>
             </div>
           </div>
@@ -679,11 +1020,11 @@ export default function App() {
 
         {/* -----------------------------------------------------------------
             MOBILE VIEW (below md):
-            Line 1: Logo on left | Search + Three-line menu icon on right
-            Line 2: Date on left | Eng/Nep + Sign In on right
+            Line 1: Logo on left | Search + Notes + Three-line menu icon on right
+            Line 2: Polished Date Badge on left | Eng/Nep + Sign In on right
            ----------------------------------------------------------------- */}
         <div className="md:hidden">
-          {/* Mobile Line 1: Logo, Search, Three-Line Menu Icon */}
+          {/* Mobile Line 1: Logo, Search, Notes, Three-Line Menu Icon */}
           <div className="px-4 h-14 flex items-center justify-between gap-2 border-b border-stone-200/80 dark:border-slate-800/80">
             <a
               href="#home"
@@ -693,20 +1034,30 @@ export default function App() {
               }}
               className="flex items-center gap-2 text-base font-bold tracking-tight text-red-900 dark:text-amber-400 whitespace-nowrap shrink-0"
             >
-              <span className="w-8 h-8 rounded-lg bg-red-800 text-amber-300 flex items-center justify-center font-serif text-base shrink-0">
-                ✝
-              </span>
-              <span>सुसमाचार · Susamachar</span>
+              <img
+                src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                alt="बाइबल सन्देश · Bible Sandesh Logo"
+                className="h-10 w-auto object-contain shrink-0"
+              />
+              <span className="text-sm sm:text-base">बाइबल सन्देश · सुसमाचार</span>
             </a>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setActiveSection('notes')}
+                className="h-9 px-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1"
+                title="Notes & Reminders"
+              >
+                <StickyNote className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                <span>{lang === 'ne' ? 'नोट' : 'Note'}</span>
+              </button>
+
               <button
                 onClick={() => setShowSearchModal(true)}
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5"
+                className="h-9 px-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1"
                 aria-label="Search"
               >
                 <Search className="w-4 h-4 text-red-800 dark:text-amber-400" />
-                <span>{lang === 'ne' ? 'खोज' : 'Search'}</span>
               </button>
 
               <button
@@ -719,13 +1070,16 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mobile Line 2: Date, Eng/Nep, Sign In */}
+          {/* Mobile Line 2: Clean Single-Line Nep/Eng Date Badge, Eng/Nep, Sign In */}
           <div className="px-4 py-2 bg-stone-100/90 dark:bg-slate-950/90 flex items-center justify-between gap-2 text-xs">
-            <span className="font-mono tabular-nums font-semibold text-slate-800 dark:text-slate-200 truncate">
-              {lang === 'ne' ? todayBS.formattedNe : todayBS.formattedEn}
-            </span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-amber-500/30 text-[11px] font-bold text-red-900 dark:text-amber-300 whitespace-nowrap truncate">
+              <Calendar className="w-3 h-3 text-red-800 dark:text-amber-400 shrink-0" />
+              <span className="truncate">
+                {lang === 'ne' ? `वि.सं. ${todayBS.formattedNe}` : todayADFormatted}
+              </span>
+            </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setLang((l) => (l === 'ne' ? 'en' : 'ne'))}
                 className="h-7 px-2.5 rounded-lg bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1 whitespace-nowrap"
@@ -743,7 +1097,7 @@ export default function App() {
                   {userSession
                     ? userSession.fullName.split(' ')[0]
                     : lang === 'ne'
-                    ? 'Sign In / लगइन'
+                    ? 'लगइन'
                     : 'Sign In'}
                 </span>
               </button>
@@ -758,12 +1112,14 @@ export default function App() {
           <div className="w-80 max-w-[85vw] bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-stone-200 dark:border-slate-800 flex flex-col justify-between overflow-y-auto p-5">
             <div className="space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-red-800 text-amber-300 flex items-center justify-center font-serif text-base">
-                    ✝
-                  </span>
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                    alt="बाइबल सन्देश · Bible Sandesh Logo"
+                    className="h-10 w-auto object-contain shrink-0"
+                  />
                   <div>
-                    <p className="text-sm font-bold text-red-900 dark:text-amber-400">सुसमाचार · Susamachar</p>
+                    <p className="text-sm font-bold text-red-900 dark:text-amber-400">बाइबल सन्देश · सुसमाचार</p>
                     <p className="text-[11px] text-slate-500">{todayBS.formattedNe}</p>
                   </div>
                 </div>
@@ -778,17 +1134,22 @@ export default function App() {
               <div className="space-y-1 text-xs font-semibold">
                 {[
                   { id: 'home', ne: 'गृहपृष्ठ (Home)', en: 'Home', icon: Home },
+                  { id: 'daily_word', ne: 'आजको बचन (Today’s Word)', en: 'Today’s Word', icon: Sparkles },
                   { id: 'bible', ne: 'पवित्र बाइबल (Holy Bible)', en: 'Holy Bible', icon: BookOpen },
+                  { id: 'quiz', ne: 'बाइबल क्विज (Bible Quiz)', en: 'Bible Quiz (66 Books)', icon: Trophy },
                   { id: 'bhajan', ne: 'ख्रीष्टिय भजन (Bhajan)', en: 'Christian Bhajan', icon: Music },
+                  { id: 'notes', ne: 'नोट र रिमाइन्डर (Notes & Reminder)', en: 'Personal Notes & Reminders', icon: StickyNote },
+                  { id: 'unicode', ne: 'नेपाली युनिकोड (Nepali Unicode)', en: 'Nepali Unicode Converter', icon: Keyboard },
+                  { id: 'podcasts', ne: 'ख्रीष्टिय पोडकास्ट (Podcasts)', en: 'Christian Podcasts', icon: Mic },
+                  { id: 'healthtips', ne: 'जीवन र स्वास्थ्य टिप्स (Life & Health)', en: 'Life & Health Tips', icon: Activity },
+                  { id: 'forex', ne: 'आजको विदेशी विनिमय दर (Forex Rates)', en: 'Foreign Exchange Rates', icon: DollarSign },
                   { id: 'prayer', ne: 'प्रार्थना पर्खाल (Prayer Wall)', en: 'Prayer Wall', icon: HeartHandshake },
                   { id: 'news', ne: 'इसाई समाचार (Christian News)', en: 'Christian News Portal', icon: Newspaper },
                   { id: 'churches', ne: 'मण्डली निर्देशिका (Church)', en: 'Church Directory', icon: Building2 },
-                  { id: 'calendar', ne: 'नेपाली पात्रो (Nepali Calendar)', en: 'Nepali Calendar', icon: Calendar },
-                  { id: 'converter', ne: 'मिति परिवर्तन (Date Converter)', en: 'BS ↔ AD Date Converter', icon: ArrowLeftRight },
-                  { id: 'radio', ne: 'एफ.एम. रेडियो (FM Radio)', en: 'Christian FM Radio', icon: Radio },
+                  { id: 'radio', ne: 'एफ.एम. रेडियो र YouTube संगीत', en: 'FM Radio & YouTube Music', icon: Radio },
                   { id: 'rates', ne: 'सुनचाँदी दर (Gold & Silver Rates)', en: 'Gold & Silver Rates', icon: Coins },
                   { id: 'gallery', ne: 'फोटो ग्यालरी (Photo Gallery)', en: 'Photo Gallery', icon: ImageIcon },
-                  { id: 'events', ne: 'इसाई कार्यक्रम (Events)', en: 'Christian Events', icon: Bell },
+                  { id: 'converter', ne: 'मिति परिवर्तन (Date Converter)', en: 'BS ↔ AD Date Converter', icon: ArrowLeftRight },
                   { id: 'admin', ne: 'एडमिन ड्यासबोर्ड (Admin CMS)', en: 'Multi-Admin CMS', icon: Shield },
                 ].map((item) => {
                   const IconComp = item.icon;
@@ -859,17 +1220,17 @@ export default function App() {
          ===================================================================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* ===================================================================
-            HOME SCREEN (All 14 Sections from Section 2)
+            HOME SCREEN
            =================================================================== */}
         {activeSection === 'home' && (
           <div className="space-y-10">
             {/* 1. Christian Hero Banner & 2. Daily Bible Verse Split */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              {/* Left 7 Columns: Himalayan Sanctuary Hero Banner */}
+              {/* Left 7 Columns: Real Nepal Himalayan Hero Banner */}
               <div className="lg:col-span-7 relative rounded-3xl overflow-hidden bg-slate-900 min-h-[340px] flex flex-col justify-end p-6 sm:p-8 text-white">
                 <img
-                  src="/art/hero-himalayan-church.svg"
-                  alt="Susamachar Himalayan Christian Community Sanctuary"
+                  src="/assets/aistudio/image_fed91b50.png"
+                  alt="बाइबल सन्देश (Bible Sandes) — Blooming Rhododendron & Himalayas of Nepal"
                   referrerPolicy="no-referrer"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
@@ -877,18 +1238,20 @@ export default function App() {
 
                 <div className="relative z-10 space-y-3 max-w-2xl">
                   <p className="text-xs font-semibold tracking-wide text-amber-300">
-                    सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ
+                    biblesandes.com • बाइबल सन्देश • सुसमाचार बाँडौँ • प्रेममा सेवा गरौँ
                   </p>
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white">
                     {lang === 'ne'
-                      ? 'सुसमाचार – नेपाली इसाई संजाल तथा बाइबल मञ्च'
-                      : 'Susamachar – Nepali Christian Community & Scripture Platform'}
+                      ? 'बाइबल सन्देश (सुसमाचार) – नेपाली इसाई संजाल तथा बाइबल मञ्च'
+                      : 'Bible Sandes (Susamachar) – Nepali Christian Community & Scripture Platform'}
                   </h1>
                   <p className="text-sm text-stone-200 leading-relaxed">
-                    Share the Gospel • Grow in Faith • Serve with Love — Access the bilingual Holy Bible, Bikram Sambat Calendar, Christian News Portal, Live FM Radio, and Prayer Wall.
+                    {lang === 'ne'
+                      ? 'पवित्र बाइबल (नेपाली, हिन्दी, अंग्रेजी), भजन संग्रह, आजको बचन, बाइबल क्विज (समयसहित), नोट र रिमाइन्डर, पोडकास्ट, जीवन र स्वास्थ्य टिप्स तथा एफ.एम. रेडियो।'
+                      : 'Share the Gospel • Grow in Faith • Serve with Love — Access the Multilingual Holy Bible, Hymns, Timed Bible Quiz, Notes & Reminders, Podcasts, Health Tips, and Live FM Radio.'}
                   </p>
 
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <div className="pt-2 flex flex-wrap items-center gap-2.5">
                     <button
                       onClick={() => setActiveSection('bible')}
                       className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
@@ -897,12 +1260,21 @@ export default function App() {
                       <span>{lang === 'ne' ? 'पवित्र बाइबल पढ्नुहोस्' : 'Read Holy Bible'}</span>
                     </button>
                     <button
-                      onClick={() => handlePlayStation(radioStations[0])}
-                      className="h-11 px-5 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                      onClick={() => setActiveSection('quiz')}
+                      className="h-11 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
                     >
-                      {isPlayingRadio ? <Pause className="w-4 h-4 text-amber-300" /> : <Play className="w-4 h-4 text-amber-300" />}
+                      <Trophy className="w-4 h-4" />
                       <span>
-                        {lang === 'ne' ? 'प्रत्यक्ष भजन रेडियो (FM 105.1)' : 'Listen Live FM Radio'}
+                        {lang === 'ne' ? 'बाइबल क्विज (Timed Quiz)' : 'Play Bible Quiz'}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('notes')}
+                      className="h-11 px-4 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <StickyNote className="w-4 h-4 text-amber-300" />
+                      <span>
+                        {lang === 'ne' ? 'नोट र रिमाइन्डर' : 'Notes & Reminders'}
                       </span>
                     </button>
                   </div>
@@ -916,7 +1288,7 @@ export default function App() {
                     <span className="font-bold text-red-800 dark:text-amber-400">
                       {lang === 'ne' ? 'आजको बाइबल पद (Daily Verse)' : 'Daily Scripture Verse'}
                     </span>
-                    <span className="font-mono tabular-nums">{todayBS.formattedNe}</span>
+                    <span className="font-mono tabular-nums">{todayBS.formattedNe} · Oct 31, 2026</span>
                   </div>
 
                   <blockquote className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-relaxed font-editorial">
@@ -970,56 +1342,264 @@ export default function App() {
               </div>
             </section>
 
-            {/* All 12 Interactive Module Cards Grid */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
+            {/* Quick Access Strip: Personal Notes & Reminders, Nepali Unicode, Podcasts, Life & Health Tips, Foreign Exchange Rates */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {[
+                {
+                  id: 'unicode' as PrimarySection,
+                  icon: Keyboard,
+                  badgeNe: 'Roman & Preeti → युनिकोड',
+                  badgeEn: 'nepali-unicode',
+                  titleNe: 'नेपाली युनिकोड (Nepali Unicode)',
+                  titleEn: 'Nepali Unicode Converter',
+                  descNe: 'रोमनाइज्ड नेपाली र प्रिती फन्टलाई शुद्ध नेपाली युनिकोडमा रूपान्तरण गर्नुहोस्।',
+                  descEn: 'Convert Romanized Nepali & Preeti font to Devanagari Unicode with keyboard.',
+                },
+                {
+                  id: 'notes' as PrimarySection,
+                  icon: StickyNote,
+                  badgeNe: 'नयाँ सुविधा • Save & Remind',
+                  badgeEn: 'Save & Set Reminder',
+                  titleNe: 'नोट लेख्ने र रिमाइन्डर (Notes)',
+                  titleEn: 'Personal Notes & Reminders',
+                  descNe: 'प्रवचन वा बाइबल अध्ययन नोट लेखेर सुरक्षित गर्नुहोस् र अलर्ट राख्नुहोस्।',
+                  descEn: 'Write sermon & Bible notes, save offline, and schedule reminders.',
+                },
+                {
+                  id: 'podcasts' as PrimarySection,
+                  icon: Mic,
+                  badgeNe: 'अडियो र भिडियो मनन',
+                  badgeEn: 'Audio & Video Devotion',
+                  titleNe: 'ख्रीष्टिय पोडकास्ट (Podcasts)',
+                  titleEn: 'Christian Podcasts',
+                  descNe: 'येशूको जीवनी, मुक्तिको सन्देश र पारिवारिक जीवनका पोडकास्ट सुन्नुहोस्।',
+                  descEn: 'Listen to Gospel teachings, youth discussions, and Christian podcasts.',
+                },
+                {
+                  id: 'healthtips' as PrimarySection,
+                  icon: Activity,
+                  badgeNe: 'आत्मिक र शारीरिक स्वास्थ्य',
+                  badgeEn: 'Holistic Wellness',
+                  titleNe: 'जीवन र स्वास्थ्य टिप्स (Life & Health)',
+                  titleEn: 'Biblical Life & Health Tips',
+                  descNe: 'बाइबलीय सिद्धान्त अनुसार स्वस्थ जीवनशैली, शान्ति र स्वास्थ्य टिप्स।',
+                  descEn: 'Biblical wisdom for physical health, peaceful mind, and daily living.',
+                },
+                {
+                  id: 'forex' as PrimarySection,
+                  icon: DollarSign,
+                  badgeNe: 'नेपाल राष्ट्र बैंक दर',
+                  badgeEn: 'NRB Official Rates',
+                  titleNe: 'आजको विदेशी विनिमय दर (Forex)',
+                  titleEn: 'Foreign Exchange Rates',
+                  descNe: 'USD, EUR, GBP, AUD, JPY, SAR, QAR, MYR र KRW को आजको विनिमय दर।',
+                  descEn: 'Today’s buying & selling NPR exchange rates + currency converter.',
+                },
+              ].map((card) => {
+                const CardIcon = card.icon;
+                return (
+                  <button
+                    key={card.id}
+                    onClick={() => setActiveSection(card.id)}
+                    className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-red-800 dark:hover:border-amber-400 rounded-2xl p-5 text-left transition-all flex flex-col justify-between gap-3 group shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="w-10 h-10 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <CardIcon className="w-5 h-5" />
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-stone-100 dark:bg-slate-800 text-[10px] font-bold text-red-800 dark:text-amber-400">
+                        {lang === 'ne' ? card.badgeNe : card.badgeEn}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-red-800 dark:group-hover:text-amber-400 transition-colors">
+                        {lang === 'ne' ? card.titleNe : card.titleEn}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                        {lang === 'ne' ? card.descNe : card.descEn}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </section>
+
+            {/* ===============================================================
+                FEATURED VIDEOS & SHORT VIDEOS ON HOME PAGE
+                (video ,short video ,home page मा देखियोस)
+               =============================================================== */}
+            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200 dark:border-slate-800">
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                    {lang === 'ne' ? 'सुसमाचार सेवा तथा मोड्युलहरू (All Platform Modules)' : 'Explore Susamachar Modules & Services'}
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {lang === 'ne'
-                      ? 'बाइबल, प्रार्थना, नेपाली पात्रो, मिति परिवर्तन, समाचार, एफ.एम. रेडियो र सुनचाँदी दर'
-                      : 'Direct access to Scripture, Nepali Calendar, Date Converter, News, Radio, Bullion Rates, and Directory'}
+                  <p className="text-xs font-bold text-red-800 dark:text-amber-400 flex items-center gap-1.5">
+                    <Video className="w-4 h-4" />
+                    <span>
+                      {lang === 'ne'
+                        ? 'ख्रीष्टिय भिडियो र शर्ट भिडियो (Videos & YouTube Shorts)'
+                        : 'Christian Videos & YouTube Shorts'}
+                    </span>
                   </p>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                    {lang === 'ne'
+                      ? 'सुसमाचार भिडियो, आराधना र १ मिनेट बाइबल शर्ट्स (Videos & Shorts)'
+                      : 'Featured Gospel Videos, Worship & Vertical Bible Shorts'}
+                  </h2>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setShowAddHomeVideoForm((prev) => !prev)}
+                    className="h-9 px-3.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>
+                      {lang === 'ne' ? '+ भिडियो / Short थप्नुहोस्' : '+ Add Video / Short'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSection('news')}
+                    className="h-9 px-3.5 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800"
+                  >
+                    {lang === 'ne' ? 'सबै मिडिया फिड →' : 'Full Media Feed →'}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-                {homeModulesGrid.map((m) => {
-                  const IconComp = m.icon;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => {
-                        if (m.id === 'study') {
-                          setActiveSection('bible');
-                        } else {
-                          setActiveSection(m.id as PrimarySection);
-                        }
-                      }}
-                      className="bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-2xl p-4 text-left hover:border-red-800 dark:hover:border-amber-400 transition-all group flex flex-col justify-between min-h-[116px]"
+              {showAddHomeVideoForm && (
+                <form
+                  onSubmit={handleAddHomeVideo}
+                  className="p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+                >
+                  <div className="sm:col-span-4">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      {lang === 'ne' ? 'भिडियो शीर्षक (Video Title)' : 'Video Title'}
+                    </label>
+                    <input
+                      type="text"
+                      value={newVideoTitle}
+                      onChange={(e) => setNewVideoTitle(e.target.value)}
+                      placeholder={lang === 'ne' ? 'उदा: येशूको क्रूसको प्रेम...' : 'e.g. Gospel Message...'}
+                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+                  <div className="sm:col-span-4">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      {lang === 'ne' ? 'YouTube Video वा Short URL' : 'YouTube Video or Short URL'}
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      value={newVideoUrl}
+                      onChange={(e) => setNewVideoUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=... or /shorts/..."
+                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      {lang === 'ne' ? 'प्रकार (Type)' : 'Format'}
+                    </label>
+                    <select
+                      value={newVideoType}
+                      onChange={(e) => setNewVideoType(e.target.value as 'video' | 'short')}
+                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs font-bold"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-slate-800 flex items-center justify-center group-hover:scale-105 transition-transform">
-                        <IconComp className={`w-5 h-5 ${m.color}`} />
-                      </div>
-                      <div className="mt-3">
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                          {lang === 'ne' ? m.ne : m.en}
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                          {lang === 'ne' ? m.descNe : m.descEn}
-                        </p>
-                      </div>
+                      <option value="video">YouTube Video (16:9)</option>
+                      <option value="short">Short Video (9:16)</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="submit"
+                      className="w-full h-10 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold"
+                    >
+                      {lang === 'ne' ? 'पोस्ट गर्नुहोस्' : 'Publish'}
                     </button>
-                  );
-                })}
+                  </div>
+                </form>
+              )}
+
+              {/* Split: Landscape Videos (Left 7 Cols) + Vertical Short Videos (Right 5 Cols) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Landscape YouTube Videos */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Video className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                    <span>{lang === 'ne' ? 'प्रमुख ख्रीष्टिय भिडियोहरू (Full Videos)' : 'Featured Christian Videos'}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {homeVideos
+                      .filter((v) => v.type === 'video')
+                      .slice(0, 4)
+                      .map((vid) => (
+                        <div
+                          key={vid.id}
+                          className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 flex flex-col justify-between"
+                        >
+                          <div className="aspect-video w-full bg-slate-950">
+                            <iframe
+                              src={vid.youtubeEmbedUrl}
+                              title={vid.titleEn}
+                              className="w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                          <div className="p-3.5 space-y-1">
+                            <span className="text-[10px] font-bold text-red-800 dark:text-amber-400">
+                              {vid.speakerNe}
+                            </span>
+                            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
+                              {lang === 'ne' ? vid.titleNe : vid.titleEn}
+                            </h3>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Vertical Short Videos (YouTube Shorts 9:16) */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Film className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                    <span>{lang === 'ne' ? 'छोटो बाइबल भिडियो (Short Videos / Shorts)' : 'Short Videos (YouTube Shorts)'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    {homeVideos
+                      .filter((v) => v.type === 'short')
+                      .slice(0, 2)
+                      .map((sh) => (
+                        <div
+                          key={sh.id}
+                          className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 flex flex-col justify-between"
+                        >
+                          <div className="aspect-[9/16] max-h-[290px] w-full bg-slate-950">
+                            <iframe
+                              src={sh.youtubeEmbedUrl}
+                              title={sh.titleEn}
+                              className="w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                          <div className="p-3 space-y-1">
+                            <span className="px-2 py-0.5 rounded-md bg-red-800 text-white text-[10px] font-bold inline-block">
+                              SHORT
+                            </span>
+                            <h3 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2">
+                              {lang === 'ne' ? sh.titleNe : sh.titleEn}
+                            </h3>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               </div>
             </section>
 
-            {/* Christian News Portal Highlights + Live FM Radio & Gold/Silver Snapshot */}
+            {/* Christian News Portal Highlights + Live FM Radio (with YouTube Music Player) & Gold/Silver Snapshot */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left 7 Columns: Latest Christian News */}
+              {/* Left 7 Columns: Christian News (Empty by default until posted later per user instruction) */}
               <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
                 <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
                   <div>
@@ -1027,61 +1607,90 @@ export default function App() {
                       {lang === 'ne' ? 'नेपाल तथा विश्व इसाई समाचार' : 'Christian News Portal'}
                     </p>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                      {lang === 'ne' ? 'प्रमुख समाचार र मण्डली गतिविधि' : 'Featured Christian News & Stories'}
+                      {lang === 'ne' ? 'इसाई समाचार तथा मण्डली गतिविधि' : 'Christian News & Community Updates'}
                     </h2>
                   </div>
                   <button
                     onClick={() => setActiveSection('news')}
                     className="text-xs font-bold text-red-800 dark:text-amber-400 hover:underline whitespace-nowrap shrink-0"
                   >
-                    {lang === 'ne' ? 'सबै समाचार हेर्नुहोस् →' : 'View All News →'}
+                    {lang === 'ne' ? '+ समाचार पोस्ट गर्नुहोस् →' : '+ Post News →'}
                   </button>
                 </div>
 
-                <div className="divide-y divide-stone-200/75 dark:divide-slate-800">
-                  {news.slice(0, 3).map((art) => (
-                    <div
-                      key={art.id}
-                      onClick={() => setActiveSection('news')}
-                      className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row gap-4 cursor-pointer group"
-                    >
-                      <img
-                        src={art.featuredImage}
-                        alt={art.titleEn}
-                        referrerPolicy="no-referrer"
-                        className="w-full sm:w-36 h-24 rounded-xl object-cover shrink-0 bg-slate-900"
-                      />
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span className="font-semibold text-red-800 dark:text-amber-400">
-                            {lang === 'ne' ? art.categoryNameNe : art.categoryNameEn}
-                          </span>
-                          <span>·</span>
-                          <span>{art.publishedAtBs}</span>
-                        </div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-red-800 dark:group-hover:text-amber-400 transition-colors leading-snug">
-                          {lang === 'ne' ? art.titleNe : art.titleEn}
-                        </h3>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
-                          {lang === 'ne' ? art.summaryNe : art.summaryEn}
-                        </p>
-                      </div>
+                {news.length === 0 ? (
+                  <div className="py-12 px-4 text-center rounded-2xl bg-stone-50 dark:bg-slate-950 border border-dashed border-stone-200 dark:border-slate-800 space-y-3">
+                    <Newspaper className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                        {lang === 'ne'
+                          ? 'अहिले कुनै इसाई समाचार लेख राखिएको छैन (पछि पोस्ट गरिनेछ)'
+                          : 'No Christian news articles posted yet (Will be posted later)'}
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        {lang === 'ne'
+                          ? 'तपाईंले समाचार पृष्ठ वा एडमिन पोर्टलबाट जुनसुकै बेला नयाँ नेपाली वा अंग्रेजी समाचार, लेख वा सोसल पोस्ट प्रकाशन गर्न सक्नुहुन्छ।'
+                          : 'You can publish new Nepali or English Christian news articles and social posts anytime from the News Portal.'}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      onClick={() => setActiveSection('news')}
+                      className="h-9 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold inline-flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{lang === 'ne' ? 'नयाँ समाचार / पोस्ट थप्नुहोस्' : 'Create News Post'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-stone-200/75 dark:divide-slate-800">
+                    {news.slice(0, 4).map((art) => (
+                      <div
+                        key={art.id}
+                        onClick={() => setActiveSection('news')}
+                        className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row gap-4 cursor-pointer group"
+                      >
+                        <img
+                          src={art.featuredImage}
+                          alt={lang === 'ne' ? art.titleNe : art.titleEn}
+                          referrerPolicy="no-referrer"
+                          className="w-full sm:w-36 h-24 rounded-xl object-cover shrink-0 bg-slate-900"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="font-semibold text-red-800 dark:text-amber-400">
+                              {lang === 'ne' ? art.categoryNameNe : art.categoryNameEn}
+                            </span>
+                            <span>·</span>
+                            <span>
+                              {art.publishedAtBs} ({art.publishedAtAd})
+                            </span>
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-red-800 dark:group-hover:text-amber-400 transition-colors leading-snug">
+                            {lang === 'ne' ? art.titleNe : art.titleEn}
+                          </h3>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                            {lang === 'ne' ? art.summaryNe : art.summaryEn}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Right 5 Columns: Live FM Radio + Daily Gold/Silver Bullion Card */}
+              {/* Right 5 Columns: Live FM Radio + YouTube Music Link Player + Daily Gold/Silver Card */}
               <div className="lg:col-span-5 space-y-6">
-                {/* Live FM Radio Quick Player Card */}
+                {/* Live FM Radio + YouTube Worship Music Quick Player Card */}
                 <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-amber-400 font-semibold">
-                        {lang === 'ne' ? 'प्रत्यक्ष इसाई एफ.एम. रेडियो' : '24/7 Christian FM Broadcast'}
+                        {lang === 'ne'
+                          ? 'प्रत्यक्ष एफ.एम. रेडियो र YouTube संगीत'
+                          : 'Live Christian FM & YouTube Music Player'}
                       </p>
                       <h3 className="text-lg font-bold mt-0.5">
-                        {lang === 'ne' ? 'आत्मिक भजन र बाइबल वचन' : 'Nepali Worship & Bible Stream'}
+                        {lang === 'ne' ? 'आत्मिक भजन र बाइबल वचन प्रसारण' : 'Real FM Stream & Worship Player'}
                       </h3>
                     </div>
                     <button
@@ -1120,6 +1729,55 @@ export default function App() {
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Direct YouTube Music / Worship Link Player inside Home FM Card */}
+                  <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                    <p className="text-[11px] font-semibold text-amber-300">
+                      {lang === 'ne'
+                        ? '🎵 वा YouTube बाट भजन / संगीतको लिङ्क बजाउनुहोस्:'
+                        : '🎵 Or Play Any Worship / Music Link from YouTube:'}
+                    </p>
+                    <form onSubmit={handlePlayHomeYoutubeMusic} className="flex gap-2">
+                      <input
+                        type="url"
+                        value={homeYtMusicUrl}
+                        onChange={(e) => setHomeYtMusicUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="flex-1 h-9 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder:text-slate-500"
+                      />
+                      <button
+                        type="submit"
+                        className="h-9 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1 shrink-0"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>{lang === 'ne' ? 'Play' : 'Play'}</span>
+                      </button>
+                    </form>
+
+                    {activeHomeYtEmbed && (
+                      <div className="rounded-xl overflow-hidden border border-slate-700 bg-black space-y-1">
+                        <div className="px-3 py-1.5 bg-slate-950 flex items-center justify-between text-[11px]">
+                          <span className="text-amber-300 font-bold">YouTube संगीत बज्दैछ</span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveHomeYtEmbed(null)}
+                            className="text-slate-400 hover:text-white"
+                          >
+                            ✕ बन्द
+                          </button>
+                        </div>
+                        <div className="aspect-video w-full">
+                          <iframe
+                            src={activeHomeYtEmbed}
+                            title="YouTube Music Player"
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1172,41 +1830,199 @@ export default function App() {
               </div>
             </section>
 
-            {/* Section 14: Contact & About Us + Platform Architecture Banner */}
-            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              <div className="lg:col-span-8 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-red-800 dark:text-amber-400">
-                  <Info className="w-4 h-4" />
-                  <span>{lang === 'ne' ? 'हाम्रो बारेमा र सम्पर्क (About Susamachar & Contact)' : 'About Susamachar Christian Network & Contact'}</span>
+            {/* Website Photo Gallery & Bible Wallpaper Maker Showcase (biblesandes.com) */}
+            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200 dark:border-slate-800">
+                <div>
+                  <p className="text-xs font-bold text-red-800 dark:text-amber-400">
+                    biblesandes.com · वेबसाइट तस्बिर ग्यालरी र बाइबल वालपेपर स्टुडियो
+                  </p>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                    {lang === 'ne'
+                      ? 'ख्रीष्टिय तस्बिरहरू र बाइबल वचन वालपेपर (Photos & Wallpapers)'
+                      : 'Christian Photo Gallery & Bible Verse Wallpaper Maker'}
+                  </h2>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                  “Share the Gospel • Grow in Faith • Serve with Love”
-                </h2>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleOpenWallpaperWithPhoto()}
+                    className="h-9 px-3.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>
+                      {lang === 'ne'
+                        ? 'फोटो अपलोड गरी वालपेपर बनाउनुहोस्'
+                        : 'Upload Photo & Make Wallpaper'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSection('gallery')}
+                    className="h-9 px-3.5 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 flex items-center gap-1.5"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                    <span>
+                      {lang === 'ne'
+                        ? '+ वेबसाइटमा फोटो थप्नुहोस् / सबै हेर्नुहोस् →'
+                        : '+ Add Photo to Website / View All →'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {galleryAlbums.slice(0, 4).map((album) => (
+                  <div
+                    key={album.id}
+                    className="group rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 flex flex-col justify-between"
+                  >
+                    <div
+                      onClick={() => setActiveSection('gallery')}
+                      className="h-40 bg-slate-900 overflow-hidden relative cursor-pointer"
+                    >
+                      <img
+                        src={album.coverImage}
+                        alt={album.titleEn}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="p-3.5 space-y-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
+                        {lang === 'ne' ? album.titleNe : album.titleEn}
+                      </h3>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-500 truncate">
+                          {lang === 'ne' ? album.locationNe : album.locationEn}
+                        </span>
+                        <button
+                          onClick={() => handleOpenWallpaperWithPhoto(album.coverImage)}
+                          className="px-2 py-1 rounded-lg bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 hover:bg-red-800 hover:text-white text-[11px] font-bold whitespace-nowrap transition-colors"
+                        >
+                          {lang === 'ne' ? 'वालपेपर बनाउनुहोस्' : 'Make Wallpaper'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* About सुसमाचार / बाइबल सन्देश & Official Contact + Social Icons */}
+            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              <div className="lg:col-span-8 space-y-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                    alt="बाइबल सन्देश · Bible Sandesh Logo"
+                    className="h-14 w-auto object-contain shrink-0"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-red-800 dark:text-amber-400">
+                      <Info className="w-3.5 h-3.5" />
+                      <span>
+                        {lang === 'ne'
+                          ? 'हाम्रो बारेमा — सुसमाचार / बाइबल सन्देश (About Susamachar · biblesandes.com)'
+                          : 'About Susamachar · Bible Sandes (biblesandes.com)'}
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mt-0.5">
+                      {lang === 'ne'
+                        ? 'बाइबल सन्देश (सुसमाचार) — “सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ”'
+                        : 'Bible Sandesh (Susamachar) — “Share the Gospel • Grow in Faith • Serve with Love”'}
+                    </h2>
+                  </div>
+                </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                   {lang === 'ne'
-                    ? 'सुसमाचार (इसाई संजाल) नेपाली भाषी मण्डली, युवा र परिवारहरूका लागि तयार पारिएको द्विभाषी डिजिटल मञ्च हो। यसमा पवित्र बाइबल, प्रार्थना पर्खाल, नेपाली पात्रो, मिति रूपान्तरण, इसाई समाचार र एफ.एम. रेडियो समावेश छन्।'
-                    : 'Susamachar is a bilingual Nepali & English Christian platform uniting believers across Nepal and the global diaspora with Scripture, prayer intercession, Bikram Sambat calendar tools, Christian journalism, and live worship radio.'}
+                    ? 'सुसमाचार (biblesandes.com) नेपाल र विश्वभरका नेपाली भाषी विश्वासी, युवा र परिवारहरूका लागि तयार पारिएको सम्पूर्ण ख्रीष्टिय डिजिटल मञ्च हो। यसमा बहुभाषी पवित्र बाइबल (नेपाली, हिन्दी र अंग्रेजी), ख्रीष्टिय भजन संग्रह, आजको बचन, बाइबल क्विज, नोट र रिमाइन्डर, पोडकास्ट, जीवन र स्वास्थ्य टिप्स तथा बाइबल वालपेपर स्टुडियो समावेश छन्।'
+                    : 'Susamachar (biblesandes.com) is a Christian platform serving Nepali, Hindi, and English-speaking believers with the Holy Bible, Christian Hymns, Timed Bible Quiz, Personal Notes & Reminders, Podcasts, Health Tips, and Bible Wallpaper Studio.'}
                 </p>
-                <p className="text-xs font-mono text-slate-500 pt-1">
-                  Central Office: Jawalakhel, Lalitpur, Nepal · Email: info@susamachar.org · Phone: +977-01-5548200
-                </p>
+
+                {/* Official Phone & Social Media Icons Bar */}
+                <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs font-semibold">
+                  <a
+                    href="tel:9858064058"
+                    className="h-9 px-3.5 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 font-mono font-bold inline-flex items-center gap-1.5 hover:bg-red-800 hover:text-white transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>९८५८०६४०५८ (9858064058)</span>
+                  </a>
+
+                  <a
+                    href="https://www.facebook.com/susamachar/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3.5 rounded-xl bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20 inline-flex items-center gap-1.5 hover:bg-blue-600 hover:text-white transition-colors"
+                    title="Facebook"
+                  >
+                    <Facebook className="w-3.5 h-3.5" />
+                    <span>Facebook</span>
+                  </a>
+
+                  <a
+                    href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3.5 rounded-xl bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-600/20 inline-flex items-center gap-1.5 hover:bg-emerald-600 hover:text-white transition-colors"
+                    title="WhatsApp Channel"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </a>
+
+                  <a
+                    href="https://www.instagram.com/susamachar"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3.5 rounded-xl bg-pink-600/10 text-pink-700 dark:text-pink-400 border border-pink-600/20 inline-flex items-center gap-1.5 hover:bg-pink-600 hover:text-white transition-colors"
+                    title="Instagram"
+                  >
+                    <Instagram className="w-3.5 h-3.5" />
+                    <span>Instagram</span>
+                  </a>
+
+                  <a
+                    href="https://www.youtube.com/@susamachar"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3.5 rounded-xl bg-red-600/10 text-red-700 dark:text-red-400 border border-red-600/20 inline-flex items-center gap-1.5 hover:bg-red-600 hover:text-white transition-colors"
+                    title="YouTube"
+                  >
+                    <Youtube className="w-3.5 h-3.5" />
+                    <span>YouTube</span>
+                  </a>
+
+                  <a
+                    href="https://x.com/susamachar"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 px-3.5 rounded-xl bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white border border-slate-400/20 inline-flex items-center gap-1.5 hover:bg-slate-900 hover:text-white transition-colors"
+                    title="X (Twitter)"
+                  >
+                    <span className="font-mono font-black text-xs">𝕏</span>
+                    <span>X (Twitter)</span>
+                  </a>
+                </div>
               </div>
 
               <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5">
                 <button
-                  onClick={() => setActiveSection('admin')}
-                  className="h-11 px-5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
+                  onClick={() => setActiveFooterModal('about')}
+                  className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Shield className="w-4 h-4" />
-                  <span>{lang === 'ne' ? 'मल्टी-एडमिन ड्यासबोर्ड र SQL/APK कोड' : 'Open Multi-Admin CMS & SQL/APK Code'}</span>
+                  <Info className="w-4 h-4" />
+                  <span>{lang === 'ne' ? 'हाम्रो बारेमा पूरा विवरण (About Us)' : 'Read Full About Susamachar'}</span>
                 </button>
-                <button
-                  onClick={() => setActiveSection('churches')}
-                  className="h-11 px-5 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 hover:bg-stone-100 dark:hover:bg-slate-800"
+                <a
+                  href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Building2 className="w-4 h-4" />
-                  <span>{lang === 'ne' ? 'नेपाल मण्डली निर्देशिका हेर्नुहोस्' : 'Browse Nepal Church Directory'}</span>
-                </button>
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{lang === 'ne' ? 'WhatsApp च्यानलमा जोडिनुहोस्' : 'Join WhatsApp Channel'}</span>
+                </a>
               </div>
             </section>
           </div>
@@ -1225,6 +2041,210 @@ export default function App() {
         )}
 
         {/* ===================================================================
+            BIBLE QUIZ MODULE VIEW (66 Books · 11,982+ Questions)
+           =================================================================== */}
+        {activeSection === 'quiz' && (
+          <BibleQuizView
+            lang={lang}
+            onNotify={notify}
+            onOpenBible={() => setActiveSection('bible')}
+          />
+        )}
+
+        {/* ===================================================================
+            आजको बचन (TODAY'S WORD & DAILY DEVOTIONAL PAGE)
+           =================================================================== */}
+        {activeSection === 'daily_word' && (
+          <div className="space-y-8">
+            {/* Page Header */}
+            <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-red-800 dark:text-amber-400">
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    {lang === 'ne'
+                      ? `दैनिक बाइबल वचन र आत्मिक मनन · ${todayBS.formattedNe}`
+                      : `Daily Scripture & Devotional · ${todayBS.formattedEn}`}
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                  {lang === 'ne' ? 'आजको बचन (Today’s Word)' : 'Today’s Word (आजको बचन)'}
+                </h1>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => setActiveSection('bible')}
+                  className="h-10 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-2 transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>{lang === 'ne' ? 'पवित्र बाइबल पढ्नुहोस्' : 'Read Full Bible'}</span>
+                </button>
+                <button
+                  onClick={() => setActiveSection('calendar')}
+                  className="h-10 px-4 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 flex items-center gap-2 transition-colors"
+                >
+                  <Calendar className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                  <span>{lang === 'ne' ? 'नेपाली पात्रो' : 'Nepali Calendar'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Main Verse of the Day + Daily Devotional Split */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              {/* Left 7 Cols: Featured Verse of the Day in Nepali & English */}
+              <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6 shadow-xs">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-lg bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 text-xs font-bold">
+                      {lang === 'ne' ? 'आजको मुख्य बाइबल वचन' : 'Featured Verse of the Day'}
+                    </span>
+                    <span className="text-xs font-mono font-semibold text-slate-500">
+                      {todayBS.formattedNe}
+                    </span>
+                  </div>
+
+                  <blockquote className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-relaxed font-editorial">
+                    “{dailyVerse.textNe}”
+                  </blockquote>
+
+                  <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+                    “{dailyVerse.textEn}”
+                  </p>
+
+                  <p className="text-sm font-mono font-bold text-red-800 dark:text-amber-400">
+                    — {dailyVerse.bookNameNe} {toNepaliDigits(dailyVerse.chapter)}:{toNepaliDigits(dailyVerse.verse)} ({dailyVerse.bookNameEn} {dailyVerse.chapter}:{dailyVerse.verse})
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-stone-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(
+                          `“${dailyVerse.textNe}” — ${dailyVerse.bookNameNe} ${toNepaliDigits(dailyVerse.chapter)}:${toNepaliDigits(dailyVerse.verse)}`
+                        );
+                        notify(lang === 'ne' ? 'आजको बचन कपी गरियो!' : 'Today’s Word copied!');
+                      }}
+                      className="h-10 px-4 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-stone-100 dark:hover:bg-slate-800"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span>{lang === 'ne' ? 'कपी गर्नुहोस्' : 'Copy Verse'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleBookmark(dailyVerse.id)}
+                      className="h-10 px-4 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-stone-100 dark:hover:bg-slate-800"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span>{lang === 'ne' ? 'बुकमार्क' : 'Bookmark'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setShareHomeVerse(dailyVerse)}
+                      className="h-10 px-4 rounded-xl bg-red-800 text-white hover:bg-red-900 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      <span>{lang === 'ne' ? 'तस्बिर कार्ड बनाउनुहोस् (Share Image)' : 'Share as Image'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right 5 Cols: Today's Devotional & Guided Prayer */}
+              <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-5 shadow-xs">
+                <div className="space-y-3">
+                  <span className="px-3 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 text-xs font-bold inline-block">
+                    {lang === 'ne' ? 'आजको आत्मिक मनन (Daily Reflection)' : 'Daily Devotional Meditation'}
+                  </span>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {lang === 'ne'
+                      ? 'परमेश्वरको अनन्त प्रेम र अनन्त जीवनको आशा'
+                      : 'God’s Unfailing Love & The Living Hope of Salvation'}
+                  </h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {lang === 'ne'
+                      ? 'परमेश्वरले हामीलाई शब्दमा मात्र होइन तर आफ्ना एकमात्र पुत्र येशू ख्रीष्ट क्रूसमा बलिदान दिएर प्रेम प्रकट गर्नुभयो। आजको दिनमा हामी जस्तोसुकै परिस्थिति, चिन्ता वा थकानबाट गुज्रिरहेका भए तापनि, हामी एक्ला छैनौँ। उहाँमाथि विश्वास गर्ने प्रत्येक व्यक्तिले क्षमा, शान्ति र अनन्त जीवनको निश्चयता पाउँदछ।'
+                      : 'God demonstrated His love for us not merely in words, but by giving His only Son Jesus Christ. Whatever challenges or burdens you face today, remember that you are deeply loved by the Creator, and in Christ you have forgiveness, peace, and eternal life.'}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800 space-y-1.5">
+                  <p className="text-xs font-bold text-red-800 dark:text-amber-400">
+                    {lang === 'ne' ? 'आजको प्रार्थना (Today’s Prayer):' : 'Today’s Guided Prayer:'}
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">
+                    {lang === 'ne'
+                      ? '“हे प्रेमी स्वर्गीय पिता, आजको नयाँ बिहानी र तपाईंको जीवित वचनको निम्ति धन्यवाद। मलाई र मेरो परिवारलाई आज तपाईंको सत्यता र प्रेममा हिँड्न सहायता गर्नुहोस्। येशू मसीहको उच्च नाउँमा, आमेन।”'
+                      : '“Loving Heavenly Father, thank You for this new day and Your living Word. Guide me and my family to walk in Your truth, grace, and love today. In Jesus’ precious name, Amen.”'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* More Curated Daily Scripture Verses Collection */}
+            <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                    {lang === 'ne' ? 'साप्ताहिक आशिषका बाइबल वचनहरू (Daily Promises)' : 'Weekly Scripture Promises & Verses'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {lang === 'ne'
+                      ? 'कुनै पनि वचन कपी गर्नुहोस् वा तस्बिर कार्ड बनाएर परिवार र मण्डलीमा सेयर गर्नुहोस्'
+                      : 'Copy any verse or generate a shareable image card for your family and church'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {CURATED_BIBLE_VERSES.map((v) => (
+                  <div
+                    key={v.id}
+                    className="p-5 rounded-2xl bg-stone-50/70 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800 flex flex-col justify-between space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <span className="text-xs font-mono font-bold text-red-800 dark:text-amber-400">
+                        {v.bookNameNe} {toNepaliDigits(v.chapter)}:{toNepaliDigits(v.verse)} · {v.bookNameEn} {v.chapter}:{v.verse}
+                      </span>
+                      <p className="text-base font-bold text-slate-900 dark:text-white leading-relaxed">
+                        “{v.textNe}”
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        “{v.textEn}”
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-stone-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(
+                            `“${v.textNe}” — ${v.bookNameNe} ${toNepaliDigits(v.chapter)}:${toNepaliDigits(v.verse)}`
+                          );
+                          notify(lang === 'ne' ? 'बाइबल वचन कपी गरियो!' : 'Verse copied!');
+                        }}
+                        className="h-8 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:border-red-800"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>{lang === 'ne' ? 'कपी' : 'Copy'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => setShareHomeVerse(v)}
+                        className="h-8 px-3 rounded-lg bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 hover:bg-red-800 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>{lang === 'ne' ? 'तस्बिर कार्ड' : 'Image Card'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================================
             NEPALI CALENDAR & BS/AD DATE CONVERTER VIEW
            =================================================================== */}
         {(activeSection === 'calendar' || activeSection === 'converter') && (
@@ -1233,6 +2253,8 @@ export default function App() {
             calendarEvents={calendarEvents}
             initialSubTab={activeSection === 'converter' ? 'converter' : 'calendar'}
             onNotify={notify}
+            onOpenDailyWord={() => setActiveSection('daily_word')}
+            onOpenBible={() => setActiveSection('bible')}
           />
         )}
 
@@ -1245,6 +2267,7 @@ export default function App() {
             articles={news}
             savedNewsIds={savedNewsIds}
             onToggleSaveNews={handleToggleSaveNews}
+            onCreatePost={handleCreateNews}
             onNotify={notify}
           />
         )}
@@ -1292,9 +2315,43 @@ export default function App() {
             }
             rates={rates}
             galleryAlbums={galleryAlbums}
+            onAddGalleryPhoto={handleAddGalleryPhoto}
+            onMakeWallpaperWithPhoto={handleOpenWallpaperWithPhoto}
             events={events}
             churches={NEPAL_CHURCH_DIRECTORY}
             onNotify={notify}
+          />
+        )}
+
+        {/* ===================================================================
+            NOTES & REMINDERS, PODCASTS, LIFE & HEALTH TIPS, AND FOREX RATES VIEW
+           =================================================================== */}
+        {(['notes', 'podcasts', 'healthtips', 'forex'] as const).includes(
+          activeSection as 'notes' | 'podcasts' | 'healthtips' | 'forex'
+        ) && (
+          <LifeNotesPodcastsView
+            lang={lang}
+            initialTab={activeSection as 'notes' | 'podcasts' | 'healthtips' | 'forex'}
+            todayBsFormatted={todayBS.formattedNe}
+            onNotify={notify}
+          />
+        )}
+
+        {/* ===================================================================
+            NEPALI UNICODE CONVERTER & VIRTUAL KEYBOARD PAGE (nepali-unicode)
+           =================================================================== */}
+        {activeSection === 'unicode' && (
+          <NepaliUnicodeView
+            lang={lang}
+            onNotify={notify}
+            onSaveToNotes={() => {
+              notify(
+                lang === 'ne'
+                  ? 'नेपाली युनिकोड पाठ "नोट र रिमाइन्डर" मा सुरक्षित गरियो!'
+                  : 'Nepali Unicode text saved to Personal Notes!'
+              );
+              setActiveSection('notes');
+            }}
           />
         )}
 
@@ -1359,6 +2416,9 @@ export default function App() {
             />
             <button
               onClick={() => {
+                if (audioRef.current) {
+                  audioRef.current.pause();
+                }
                 sacredRadioEngine.stop();
                 setIsPlayingRadio(false);
                 setActiveStationId(null);
@@ -1412,36 +2472,141 @@ export default function App() {
       </nav>
 
       {/* =====================================================================
-          REDESIGNED FOOTER:
-          Line 1: Logo + Brand Name, with Slogan directly underneath the Logo
-          Line 2: About Us · Privacy · Terms/Conditions · Tools · Support (WhatsApp) · AI
+          REDESIGNED FOOTER WITH SOCIAL ICONS (Facebook, WhatsApp, Instagram, YouTube, X)
          ===================================================================== */}
       <footer className="bg-white dark:bg-slate-900 border-t border-stone-200 dark:border-slate-800 py-10 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center gap-6">
-          {/* First Line / Block: Logo + Slogan underneath Logo */}
-          <div className="flex flex-col items-center space-y-2">
+          {/* First Line / Block: Logo + Slogan + Social Media Icons */}
+          <div className="flex flex-col items-center space-y-3">
             <a
               href="#home"
               onClick={(e) => {
                 e.preventDefault();
                 setActiveSection('home');
               }}
-              className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-red-900 dark:text-amber-400"
+              className="flex flex-col sm:flex-row items-center gap-3 text-xl font-bold tracking-tight text-red-900 dark:text-amber-400"
             >
-              <span className="w-9 h-9 rounded-xl bg-red-800 text-amber-300 flex items-center justify-center font-serif text-lg shadow-xs">
-                ✝
-              </span>
-              <span>सुसमाचार · Susamachar</span>
+              <img
+                src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                alt="बाइबल सन्देश · Bible Sandesh Logo"
+                className="h-16 w-auto object-contain shrink-0 drop-shadow-xs"
+              />
+              <span>बाइबल सन्देश · सुसमाचार (Bible Sandesh)</span>
             </a>
             <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 max-w-xl">
               {lang === 'ne'
                 ? '“सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ”'
                 : '“Share the Gospel • Grow in Faith • Serve with Love”'}
             </p>
+
+            {/* Bilingual Nepali (BS) & English (AD) Date Badge in Footer */}
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+              <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-stone-100 dark:bg-slate-800 border border-amber-500/30 text-xs">
+                <Calendar className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                <span className="font-bold text-red-900 dark:text-amber-300">
+                  वि.सं. {todayBS.formattedNe}
+                </span>
+                <span className="text-stone-400 dark:text-slate-600">•</span>
+                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                  {todayADFormatted}
+                </span>
+              </div>
+            </div>
+
+            {/* Social Media & Contact Icons Row */}
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5 text-xs font-semibold">
+              <a
+                href="tel:9858064058"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors font-mono"
+                title="Phone: 9858064058"
+              >
+                <Phone className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                <span>९८५८०६४०५८</span>
+              </a>
+
+              <a
+                href="https://www.facebook.com/susamachar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="Facebook: facebook.com/susamachar"
+              >
+                <Facebook className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Facebook</span>
+              </a>
+
+              <a
+                href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="WhatsApp Channel"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>WhatsApp</span>
+              </a>
+
+              <a
+                href="https://www.instagram.com/susamachar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-pink-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="Instagram"
+              >
+                <Instagram className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
+                <span>Instagram</span>
+              </a>
+
+              <a
+                href="https://www.youtube.com/@susamachar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="YouTube"
+              >
+                <Youtube className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <span>YouTube</span>
+              </a>
+
+              <a
+                href="https://x.com/susamachar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-slate-950 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="X (Twitter)"
+              >
+                <span className="font-mono font-black text-xs">𝕏</span>
+                <span>X</span>
+              </a>
+            </div>
           </div>
 
-          {/* Second Line: About Us, Privacy, Terms/Conditions, Tools, Support (WhatsApp), AI */}
-          <div className="w-full pt-5 border-t border-stone-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          {/* Second Line in Footer: Nepali Unicode, Notes & Reminder, About Us, Privacy, Terms, Tools, WhatsApp Support, AI */}
+          <div className="w-full pt-5 border-t border-stone-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <button
+              onClick={() => {
+                setActiveSection('unicode');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-3 py-1.5 rounded-xl bg-red-800/10 text-red-800 dark:text-amber-400 border border-red-800/20 hover:bg-red-800 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
+            >
+              <Keyboard className="w-3.5 h-3.5" />
+              <span>{lang === 'ne' ? 'नेपाली युनिकोड (Nepali Unicode)' : 'Nepali Unicode'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSection('notes');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <StickyNote className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <span>{lang === 'ne' ? 'नोट र रिमाइन्डर (Notes)' : 'Notes & Reminders'}</span>
+            </button>
+
+            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+
             <button
               onClick={() => setActiveFooterModal('about')}
               className="hover:text-red-800 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 whitespace-nowrap"
@@ -1502,7 +2667,7 @@ export default function App() {
           </div>
 
           <div className="text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-center gap-3">
-            <span>© {new Date().getFullYear()} Susamachar – Christian App | सुसमाचार – इसाई संजाल</span>
+            <span>© {new Date().getFullYear()} Susamachar – Christian App | सुसमाचार – इसाई संजाल (biblesandes.com)</span>
             <span>·</span>
             <button
               onClick={() => setActiveSection('admin')}
@@ -1555,7 +2720,7 @@ export default function App() {
                 {activeFooterModal === 'ai' && (
                   <>
                     <Sparkles className="w-5 h-5 text-red-800 dark:text-amber-400" />
-                    <span>{lang === 'ne' ? 'सुसमाचार AI बाइबल सहायक (AI Assistant)' : 'Susamachar AI Bible & Devotional Assistant'}</span>
+                    <span>{lang === 'ne' ? 'सुसमाचार बाइबलीय AI सहायक (Biblical AI Only)' : 'Susamachar Biblical AI Assistant'}</span>
                   </>
                 )}
               </h3>
@@ -1568,19 +2733,118 @@ export default function App() {
             </div>
 
             {activeFooterModal === 'about' && (
-              <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  सुसमाचार – इसाई संजाल (Susamachar – Christian App)
-                </p>
+              <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                    alt="बाइबल सन्देश · Bible Sandesh Logo"
+                    className="h-14 w-auto object-contain shrink-0"
+                  />
+                  <div>
+                    <p className="font-bold text-sm text-slate-900 dark:text-white">
+                      बाइबल सन्देश · सुसमाचार (Bible Sandesh · biblesandes.com)
+                    </p>
+                    <p className="text-[11px] text-red-800 dark:text-amber-400 font-semibold">
+                      “सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ”
+                    </p>
+                  </div>
+                </div>
                 <p>
                   {lang === 'ne'
-                    ? 'सुसमाचार एप नेपाल र विश्वभरका नेपाली भाषी विश्वासीहरूका लागि तयार पारिएको सम्पूर्ण डिजिटल प्लेटफर्म हो। यसमा नेपाली र अंग्रेजी पवित्र बाइबल, प्रार्थना पर्खाल, विक्रम सम्वत् पात्रो, मिति परिवर्तन, इसाई समाचार, २४ घण्टे क्रिश्चियन एफ.एम. रेडियो, सुनचाँदीको दैनिक दर र मण्डली निर्देशिका उपलब्ध छन्।'
-                    : 'Susamachar is a bilingual Nepali and English Christian platform uniting believers across Nepal and the global diaspora with the Holy Bible, Prayer Wall, Bikram Sambat Calendar, BS/AD Date Converter, Christian News Portal, 24/7 FM Radio, and Church Directory.'}
+                    ? 'सुसमाचार (biblesandes.com) परमेश्वरको जीवित वचन, ख्रीष्टिय भजन, दैनिक आत्मिक मनन (आजको बचन), बाइबल क्विज, नोट र रिमाइन्डर, पोडकास्ट तथा जीवन र स्वास्थ्य टिप्सलाई नेपाल र विश्वभरका नेपाली भाषी समुदायमाझ पुर्याउने डिजिटल सेवकाइ र संजाल हो।'
+                    : 'Susamachar (biblesandes.com) is a Christian digital ministry and community platform dedicated to sharing the living Word of God, Nepali & Hindi Christian hymns, daily devotionals, timed Bible quiz, personal notes & reminders, podcasts, and health tips.'}
                 </p>
-                <div className="p-3.5 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 space-y-1">
-                  <p><strong>Email:</strong> info@susamachar.org</p>
-                  <p><strong>Phone / WhatsApp:</strong> +977-1-5548900 / +977-9851000000</p>
-                  <p><strong>Office:</strong> Jawalakhel, Lalitpur, Nepal</p>
+                <div className="p-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 space-y-2.5">
+                  <p className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                    <span>{lang === 'ne' ? 'आधिकारिक सम्पर्क र सामाजिक संजाल:' : 'Official Contact & Social Links:'}</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                    <strong>{lang === 'ne' ? 'सम्पर्क नम्बर (Phone):' : 'Phone:'}</strong>{' '}
+                    <a href="tel:9858064058" className="text-red-800 dark:text-amber-400 font-mono font-bold hover:underline">
+                      ९८५८०६४०५८ (9858064058)
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Facebook className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <strong>Facebook:</strong>{' '}
+                    <a
+                      href="https://www.facebook.com/susamachar/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-700 dark:text-amber-400 font-mono font-bold hover:underline break-all"
+                    >
+                      https://www.facebook.com/susamachar/
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <strong>WhatsApp Channel:</strong>{' '}
+                    <a
+                      href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 dark:text-emerald-400 font-mono font-bold hover:underline break-all"
+                    >
+                      whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Instagram className="w-3.5 h-3.5 text-pink-600 shrink-0" />
+                    <strong>Instagram:</strong>{' '}
+                    <a
+                      href="https://www.instagram.com/susamachar"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-pink-700 dark:text-pink-400 font-mono font-bold hover:underline"
+                    >
+                      instagram.com/susamachar
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Youtube className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                    <strong>YouTube:</strong>{' '}
+                    <a
+                      href="https://www.youtube.com/@susamachar"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-red-700 dark:text-red-400 font-mono font-bold hover:underline"
+                    >
+                      youtube.com/@susamachar
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="font-mono font-black text-xs w-3.5 text-center shrink-0">𝕏</span>
+                    <strong>X (Twitter):</strong>{' '}
+                    <a
+                      href="https://x.com/susamachar"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-900 dark:text-white font-mono font-bold hover:underline"
+                    >
+                      x.com/susamachar
+                    </a>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Globe className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                    <strong>Email & Website:</strong>{' '}
+                    <a
+                      href="mailto:info@biblesandes.com"
+                      className="text-red-800 dark:text-amber-400 font-mono font-bold hover:underline"
+                    >
+                      info@biblesandes.com
+                    </a>{' '}
+                    ·{' '}
+                    <a
+                      href="https://biblesandes.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-red-800 dark:text-amber-400 font-mono font-bold hover:underline"
+                    >
+                      biblesandes.com
+                    </a>
+                  </p>
                 </div>
               </div>
             )}
@@ -1591,10 +2855,10 @@ export default function App() {
                   <strong>1. Prayer Request Privacy:</strong> Private prayer requests submitted on Susamachar are strictly confidential and never displayed on the public Prayer Wall without explicit consent and pastoral moderation.
                 </p>
                 <p>
-                  <strong>2. Personal Data Protection:</strong> Your account email, saved Bible bookmarks, and notification preferences are encrypted and never sold or shared with third-party advertisers.
+                  <strong>2. Personal Data Protection:</strong> Your account email, saved Bible bookmarks, personal notes, and notification preferences are stored securely and never sold or shared with third-party advertisers.
                 </p>
                 <p>
-                  <strong>3. Offline Storage:</strong> Bible chapters and Nepali Calendar data cached on your device remain strictly local for offline reading.
+                  <strong>3. Offline Storage:</strong> Bible chapters, personal notes, and reminders cached on your device remain strictly local for offline reading.
                 </p>
               </div>
             )}
@@ -1602,10 +2866,10 @@ export default function App() {
             {activeFooterModal === 'terms' && (
               <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 <p>
-                  <strong>1. Scripture Licensing:</strong> All Nepali and English Bible translations provided in Susamachar are authorized public domain or licensed editions for personal devotion and church study.
+                  <strong>1. Scripture Licensing:</strong> All Nepali, Hindi, and English Bible translations provided in Susamachar are authorized editions for personal devotion and church study.
                 </p>
                 <p>
-                  <strong>2. Community Conduct:</strong> Users submitting prayer requests or news comments agree to uphold Christian love, mutual respect, and truthfulness.
+                  <strong>2. Community Conduct:</strong> Users submitting prayer requests or social posts agree to uphold Christian love, mutual respect, and truthfulness.
                 </p>
                 <p>
                   <strong>3. Editorial Verification:</strong> Christian news articles and church events are verified by our editorial and pastoral moderation team before publication.
@@ -1617,20 +2881,44 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {[
                   {
-                    id: 'calendar',
-                    titleNe: 'नेपाली पात्रो (BS/AD Calendar)',
-                    titleEn: 'Nepali Calendar (BS 2083)',
-                    descNe: 'पर्व, बिदा र मण्डली कार्यक्रम',
-                    descEn: 'Christian festivals & public holidays',
-                    icon: Calendar,
+                    id: 'unicode',
+                    titleNe: 'नेपाली युनिकोड (Nepali Unicode)',
+                    titleEn: 'Nepali Unicode (nepali-unicode)',
+                    descNe: 'Romanized र Preeti फन्टबाट नेपाली युनिकोड रूपान्तरण र किबोर्ड',
+                    descEn: 'Romanized & Preeti to Nepali Unicode converter + keyboard',
+                    icon: Keyboard,
                   },
                   {
-                    id: 'converter',
-                    titleNe: 'मिति परिवर्तन (Date Converter)',
-                    titleEn: 'BS ↔ AD Date Converter',
-                    descNe: 'विक्रम सम्वत् र ईस्वी सम्वत् रूपान्तरण',
-                    descEn: 'Exact Bikram Sambat to Gregorian',
-                    icon: ArrowLeftRight,
+                    id: 'forex',
+                    titleNe: 'आजको विदेशी विनिमय दर (Forex Rates)',
+                    titleEn: 'Today’s Foreign Exchange Rates',
+                    descNe: 'नेपाल राष्ट्र बैंकको आजको विदेशी मुद्रा खरिद/बिक्री दर र क्यालकुलेटर',
+                    descEn: 'NRB daily currency exchange rates & NPR converter',
+                    icon: DollarSign,
+                  },
+                  {
+                    id: 'notes',
+                    titleNe: 'नोट र रिमाइन्डर (Notes & Reminder)',
+                    titleEn: 'Personal Notes & Reminders',
+                    descNe: 'नोट लेखेर सेभ गर्नुहोस् र समय तोकेर रिमाइन्डर राख्नुहोस्',
+                    descEn: 'Write & save notes with scheduled reminder alerts',
+                    icon: StickyNote,
+                  },
+                  {
+                    id: 'podcasts',
+                    titleNe: 'ख्रीष्टिय पोडकास्ट (Podcasts)',
+                    titleEn: 'Christian Podcasts',
+                    descNe: 'आत्मिक प्रवचन, येशूको जीवनी र युवा पोडकास्ट',
+                    descEn: 'Biblical teachings, devotionals & youth podcasts',
+                    icon: Mic,
+                  },
+                  {
+                    id: 'healthtips',
+                    titleNe: 'जीवन र स्वास्थ्य टिप्स (Life & Health)',
+                    titleEn: 'Biblical Life & Health Tips',
+                    descNe: 'बाइबलीय जीवनशैली, मानसिक शान्ति र स्वास्थ्य टिप्स',
+                    descEn: 'Biblical wellness, peace of mind & daily health tips',
+                    icon: Activity,
                   },
                   {
                     id: 'rates',
@@ -1641,11 +2929,27 @@ export default function App() {
                     icon: Coins,
                   },
                   {
+                    id: 'converter',
+                    titleNe: 'मिति परिवर्तन (Date Converter)',
+                    titleEn: 'BS ↔ AD Date Converter',
+                    descNe: 'विक्रम सम्वत् र ईस्वी सम्वत् रूपान्तरण',
+                    descEn: 'Exact Bikram Sambat to Gregorian',
+                    icon: ArrowLeftRight,
+                  },
+                  {
+                    id: 'quiz',
+                    titleNe: 'बाइबल क्विज (Timed Bible Quiz)',
+                    titleEn: '66-Book Timed Bible Quiz',
+                    descNe: 'समयसहित ६६ पुस्तक र १,१८९ अध्यायका १२,०००+ प्रश्न',
+                    descEn: 'Timed 12,000+ Scripture quiz questions',
+                    icon: Trophy,
+                  },
+                  {
                     id: 'bible',
-                    titleNe: 'पद तस्बिर कार्ड (Verse Image Tool)',
-                    titleEn: 'Bible Verse Image Generator',
-                    descNe: 'बाइबल पदलाई आकर्षक कार्डमा सेयर गर्नुहोस्',
-                    descEn: 'Create & download verse cards',
+                    titleNe: 'बाइबल वालपेपर कार्ड (Wallpaper Tool)',
+                    titleEn: 'Bible Verse Wallpaper Maker',
+                    descNe: 'बाइबल पदलाई आकर्षक तस्बिर कार्डमा सेयर गर्नुहोस्',
+                    descEn: 'Create & download verse wallpapers',
                     icon: ImageIcon,
                   },
                 ].map((tool) => {
@@ -1679,38 +2983,41 @@ export default function App() {
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-2">
                   <p className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
                     {lang === 'ne'
-                      ? 'सुसमाचार २४/७ व्हाट्सएप सहायता र प्रार्थना डेस्क'
-                      : 'Susamachar WhatsApp Support & Prayer Desk'}
+                      ? 'सुसमाचार २४/७ व्हाट्सएप च्यानल र सहायता डेस्क'
+                      : 'Susamachar Official WhatsApp Channel & Support Desk'}
                   </p>
                   <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
                     {lang === 'ne'
-                      ? 'प्राविधिक सहयोग, मण्डली सूचीकरण, समाचार पठाउन वा आकस्मिक प्रार्थना निवेदनका लागि हाम्रो व्हाट्सएप नम्बरमा सम्पर्क गर्नुहोस्।'
-                      : 'Reach our support team on WhatsApp for technical assistance, church listing updates, news submissions, or urgent pastoral prayer.'}
+                      ? 'प्राविधिक सहयोग, दैनिक बाइबल वचन, मण्डली सूचीकरण वा प्रार्थना निवेदनका लागि हाम्रो आधिकारिक व्हाट्सएप च्यानलमा जोडिनुहोस् वा ९८५८०६४०५८ मा सम्पर्क गर्नुहोस्।'
+                      : 'Join our official WhatsApp Channel or contact 9858064058 for technical support, daily Bible verses, and prayer fellowship.'}
                   </p>
-                  <p className="font-mono font-bold text-slate-900 dark:text-white">
-                    WhatsApp: +977 985-1000000
+                  <p className="font-mono font-bold text-slate-900 dark:text-white break-all">
+                    https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L
+                  </p>
+                  <p className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                    📞 Phone / WhatsApp: ९८५८०६४०५८ (9858064058)
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <a
-                    href="https://wa.me/9779851000000?text=Jai%20Masih%20Susamachar%20Support"
+                    href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center justify-center gap-2"
                   >
                     <MessageCircle className="w-4 h-4" />
-                    <span>{lang === 'ne' ? 'WhatsApp मा च्याट खोल्नुहोस्' : 'Open WhatsApp Chat'}</span>
+                    <span>{lang === 'ne' ? 'WhatsApp च्यानल खोल्नुहोस्' : 'Join WhatsApp Channel'}</span>
                   </a>
                   <button
                     onClick={() => {
-                      navigator.clipboard?.writeText('+9779851000000');
-                      notify(lang === 'ne' ? 'व्हाट्सएप नम्बर कपी गरियो!' : 'WhatsApp number copied!');
+                      navigator.clipboard?.writeText('https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L');
+                      notify(lang === 'ne' ? 'व्हाट्सएप लिङ्क कपी गरियो!' : 'WhatsApp channel link copied!');
                     }}
                     className="h-10 px-4 rounded-xl bg-stone-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>{lang === 'ne' ? 'नम्बर कपी' : 'Copy Number'}</span>
+                    <span>{lang === 'ne' ? 'लिङ्क कपी' : 'Copy Link'}</span>
                   </button>
                 </div>
               </div>
@@ -1718,11 +3025,18 @@ export default function App() {
 
             {activeFooterModal === 'ai' && (
               <div className="space-y-3 text-xs">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] font-semibold text-amber-900 dark:text-amber-300">
+                  {lang === 'ne'
+                    ? '✝ बाइबलीय नियम: यस AI सहायकलाई केवल पवित्र बाइबल, प्रभु येशू ख्रीष्ट र मुक्तिको (Salvation) विषयमा मात्र लेख्न अनुमति दिइएको छ।'
+                    : '✝ Biblical Rule: This AI Assistant is strictly restricted to writing only about the Holy Bible, Lord Jesus Christ, and Salvation.'}
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { ne: 'शान्तिको बाइबल पद', en: 'Bible verse for peace' },
-                    { ne: 'यूहन्ना ३:१६ को अर्थ', en: 'Meaning of John 3:16' },
-                    { ne: 'बिहानको छोटो प्रार्थना', en: 'Short morning prayer' },
+                    { ne: 'प्रभु येशू ख्रीष्ट को हुनुहुन्छ?', en: 'Who is Lord Jesus Christ according to the Bible?' },
+                    { ne: 'बाइबल अनुसार मुक्ति (Salvation) कसरी पाइन्छ?', en: 'How do we receive Salvation according to the Bible?' },
+                    { ne: 'यूहन्ना ३:१६ र १४:६ को अर्थ', en: 'Meaning of John 3:16 and John 14:6' },
+                    { ne: 'शान्ति र क्षमाको बाइबल पद', en: 'Bible verses on peace and forgiveness' },
                   ].map((chip) => (
                     <button
                       key={chip.en}
@@ -1749,7 +3063,7 @@ export default function App() {
                   ))}
                   {aiLoading && (
                     <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-slate-500 animate-pulse">
-                      {lang === 'ne' ? 'वचन खोजिँदैछ...' : 'Searching Scripture...'}
+                      {lang === 'ne' ? 'पवित्र धर्मशास्त्र खोजिँदैछ...' : 'Searching Holy Scripture...'}
                     </div>
                   )}
                 </div>
@@ -1767,8 +3081,8 @@ export default function App() {
                     onChange={(e) => setAiInput(e.target.value)}
                     placeholder={
                       lang === 'ne'
-                        ? 'बाइबल वा प्रार्थनासम्बन्धी प्रश्न सोध्नुहोस्...'
-                        : 'Ask a Bible, devotional, or prayer question...'
+                        ? 'बाइबल, येशू ख्रीष्ट वा मुक्तिसम्बन्धी प्रश्न सोध्नुहोस्...'
+                        : 'Ask about the Bible, Jesus Christ, or Salvation...'
                     }
                     className="flex-1 h-10 px-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-red-800"
                   />
@@ -1778,7 +3092,7 @@ export default function App() {
                     className="h-10 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white font-bold flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{lang === 'ne' ? 'पठाउनुहोस्' : 'Ask'}</span>
+                    <span>{lang === 'ne' ? 'सोध्नुहोस्' : 'Ask'}</span>
                   </button>
                 </form>
               </div>
@@ -2091,11 +3405,28 @@ export default function App() {
         </div>
       )}
 
-      {/* Share Daily Verse as Image Modal */}
+      {/* Share Daily Verse as Image / Custom Photo Wallpaper Studio Modal */}
       <VerseImageShareModal
         verse={shareHomeVerse}
         lang={lang}
-        onClose={() => setShareHomeVerse(null)}
+        initialBgImageUrl={wallpaperBgUrl}
+        galleryPhotos={galleryAlbums}
+        onUploadPhotoToWebsite={(photoDataUrl, title) =>
+          handleAddGalleryPhoto({
+            titleNe: title,
+            titleEn: title,
+            category: 'worship',
+            locationNe: 'नेपाल',
+            locationEn: 'Nepal',
+            coverImage: photoDataUrl,
+            descriptionNe: 'बाइबल वालपेपर स्टुडियो (biblesandes.com) बाट थपिएको तस्बिर।',
+            descriptionEn: 'Photo added via Bible Wallpaper Studio (biblesandes.com).',
+          })
+        }
+        onClose={() => {
+          setShareHomeVerse(null);
+          setWallpaperBgUrl(null);
+        }}
         onNotify={notify}
       />
 

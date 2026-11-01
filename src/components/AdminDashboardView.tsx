@@ -25,6 +25,8 @@ import {
   PrayerRequestItem,
   RadioStation,
 } from '../data/susamacharDatabase';
+import { BhajanModuleView } from './BhajanModuleView';
+
 
 interface AdminDashboardViewProps {
   lang: 'ne' | 'en';
@@ -60,7 +62,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onNotify,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'news' | 'prayer' | 'rates' | 'radio' | 'admins' | 'deliverables'
+    'overview' | 'news' | 'hymns' | 'prayer' | 'rates' | 'radio' | 'admins' | 'deliverables'
   >('overview');
 
   // News creation form states
@@ -219,6 +221,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         {[
           { id: 'overview', ne: 'तथ्याङ्क र सारांश (Overview)', en: 'Overview & Stats', mod: 'overview' },
           { id: 'news', ne: `समाचार व्यवस्थापन (${news.length})`, en: `News CMS (${news.length})`, mod: 'news' },
+          { id: 'hymns', ne: 'भजन पुस्तकालय (१,२६८)', en: 'Hymn Library CMS (1,268)', mod: 'bible' },
           { id: 'prayer', ne: `प्रार्थना स्वीकृति (${pendingPrayersCount} Pending)`, en: `Prayer Moderation (${pendingPrayersCount})`, mod: 'prayer' },
           { id: 'rates', ne: 'सुनचाँदी दर अपडेट (Finance)', en: 'Gold/Silver Rates', mod: 'rates' },
           { id: 'radio', ne: `एफ.एम. रेडियो (${radioStations.length})`, en: `FM Radio (${radioStations.length})`, mod: 'radio' },
@@ -856,6 +859,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             {deliverableContent}
           </pre>
         </div>
+      )}
+
+      {/* TAB 8: CHRISTIAN HYMN LIBRARY ADMIN CMS */}
+      {activeTab === 'hymns' && (
+        <BhajanModuleView lang={lang} onNotify={onNotify} isAdminView={true} />
       )}
     </div>
   );

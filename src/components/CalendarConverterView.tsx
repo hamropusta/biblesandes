@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
   Bell,
+  BookOpen,
   Calendar as CalendarIcon,
   Check,
   ChevronLeft,
   ChevronRight,
   Copy,
   Share2,
+  Sparkles,
 } from 'lucide-react';
 import {
   buildBSMonthCalendar,
@@ -34,6 +36,8 @@ interface CalendarConverterViewProps {
   }>;
   initialSubTab?: 'calendar' | 'converter';
   onNotify: (msg: string) => void;
+  onOpenDailyWord?: () => void;
+  onOpenBible?: () => void;
 }
 
 export const CalendarConverterView: React.FC<CalendarConverterViewProps> = ({
@@ -41,6 +45,8 @@ export const CalendarConverterView: React.FC<CalendarConverterViewProps> = ({
   calendarEvents,
   initialSubTab = 'calendar',
   onNotify,
+  onOpenDailyWord,
+  onOpenBible,
 }) => {
   const todayBS = useMemo(() => convertADToBS(2026, 10, 31), []);
   const [subTab, setSubTab] = useState<'calendar' | 'converter'>(initialSubTab);
@@ -164,6 +170,15 @@ export const CalendarConverterView: React.FC<CalendarConverterViewProps> = ({
             >
               {lang === 'ne' ? 'मिति परिवर्तन (Date Converter)' : 'BS ↔ AD Converter'}
             </button>
+            {onOpenDailyWord && (
+              <button
+                onClick={onOpenDailyWord}
+                className="px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 text-red-800 dark:text-amber-400 hover:bg-red-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{lang === 'ne' ? 'आजको बचन (Today’s Word)' : 'Today’s Word'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -563,6 +578,98 @@ export const CalendarConverterView: React.FC<CalendarConverterViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ===================================================================
+          BOTTOM SECTION OF NEPALI PATRO: आजको बचन (TODAY'S WORD & DEVOTIONAL)
+         =================================================================== */}
+      <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 space-y-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200 dark:border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </span>
+            <div>
+              <p className="text-xs font-bold text-red-800 dark:text-amber-400">
+                {lang === 'ne' ? 'नेपाली पात्रो · दैनिक आत्मिक खुराक' : 'Nepali Calendar · Daily Spiritual Manna'}
+              </p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                {lang === 'ne' ? `आजको बचन (${todayBS.formattedNe})` : `Today’s Word (${todayBS.formattedEn})`}
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenDailyWord && (
+              <button
+                onClick={onOpenDailyWord}
+                className="h-9 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{lang === 'ne' ? 'आजको बचन पूरा पेज हेर्नुहोस् →' : 'Open Full Today’s Word Page →'}</span>
+              </button>
+            )}
+            {onOpenBible && (
+              <button
+                onClick={onOpenBible}
+                className="h-9 px-3.5 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                <span>{lang === 'ne' ? 'पवित्र बाइबल' : 'Holy Bible'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div className="lg:col-span-7 space-y-3 bg-stone-50/80 dark:bg-slate-950/60 border border-stone-200/80 dark:border-slate-800 rounded-2xl p-5">
+            <span className="inline-block px-2.5 py-0.5 rounded-md bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 text-[11px] font-bold">
+              {lang === 'ne' ? 'आजको मुख्य बाइबल पद (Verse of the Day)' : 'Verse of the Day'}
+            </span>
+            <blockquote className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-relaxed font-editorial">
+              “किनभने परमेश्वरले संसारलाई यस्तो प्रेम गर्नुभयो, कि उहाँले आफ्ना एकमात्र पुत्र दिनुभयो, ताकि उहाँमाथि विश्वास गर्ने कोही पनि नाश नहोस्, तर तिनीहरूले अनन्त जीवन पाऊन्।”
+            </blockquote>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              “For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.”
+            </p>
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-mono font-bold text-red-800 dark:text-amber-400">
+                — यूहन्ना ३:१६ (John 3:16)
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(
+                    '“किनभने परमेश्वरले संसारलाई यस्तो प्रेम गर्नुभयो, कि उहाँले आफ्ना एकमात्र पुत्र दिनुभयो, ताकि उहाँमाथि विश्वास गर्ने कोही पनि नाश नहोस्, तर तिनीहरूले अनन्त जीवन पाऊन्।” — यूहन्ना ३:१६'
+                  );
+                  onNotify(lang === 'ne' ? 'आजको बचन कपी गरियो!' : 'Today’s Word copied!');
+                }}
+                className="h-8 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:border-red-800"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{lang === 'ne' ? 'वचन कपी गर्नुहोस्' : 'Copy Verse'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 space-y-3">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              {lang === 'ne' ? 'आजको आत्मिक मनन (Daily Reflection)' : 'Daily Devotional Reflection'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {lang === 'ne'
+                ? 'परमेश्वरको प्रेम शर्तहीन र अनन्त छ। आजको दिन सुरु गर्दा उहाँको अनुग्रह र उपस्थितिलाई स्मरण गरौँ। जस्तोसुकै परिस्थितिमा पनि येशू ख्रीष्टमा हामीलाई अनन्त आशा, शान्ति र उद्धार प्राप्त छ।'
+                : 'God’s love is unconditional and eternal. As we walk through today, let us remember His grace and presence. In every season, Jesus Christ gives us living hope, peace, and salvation.'}
+            </p>
+            <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 text-xs text-slate-700 dark:text-slate-300">
+              <strong className="text-red-800 dark:text-amber-400 block mb-1">
+                {lang === 'ne' ? 'आजको छोटो प्रार्थना:' : 'Today’s Short Prayer:'}
+              </strong>
+              {lang === 'ne'
+                ? '“हे स्वर्गीय पिता, तपाईंको असीम प्रेम र आजको नयाँ दिनको निम्ति धन्यवाद। आज मेरो बोली, काम र विचारद्वारा तपाईंको महिमा भएको होस्। आमेन।”'
+                : '“Heavenly Father, thank You for Your unfailing love and the gift of today. May my words, work, and thoughts glorify You. Amen.”'}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
