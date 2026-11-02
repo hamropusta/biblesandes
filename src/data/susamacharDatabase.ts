@@ -86,7 +86,7 @@ export interface PrayerRequestItem {
   id: number;
   requesterName: string;
   location: string;
-  category: 'healing' | 'family' | 'church' | 'nation' | 'youth' | 'thanksgiving';
+  category: 'healing' | 'family' | 'guidance' | 'church' | 'nation' | 'youth' | 'thanksgiving';
   titleEn: string;
   titleNe: string;
   requestTextEn: string;
@@ -893,11 +893,59 @@ export const INITIAL_PRAYER_REQUESTS: PrayerRequestItem[] = [
     requestTextEn: 'Our rural congregation of 85 families is building a safe prayer hall before winter. Pray for provision and safety of volunteer builders.',
     requestTextNe: 'जाडोयाम सुरु हुनुअघि हाम्रो ग्रामीण मण्डलीको प्रार्थना भवन निर्माण कार्य पूरा हुन सकोस् भनी प्रार्थना गरिदिनुहुन अनुरोध छ।',
     visibility: 'public',
-    moderationStatus: 'pending',
+    moderationStatus: 'approved',
     prayerStatus: 'active',
-    prayedCount: 19,
+    prayedCount: 89,
     createdAtBs: '२०८३ कार्तिक १५',
     createdAtAd: '2026-10-31',
+  },
+  {
+    id: 5,
+    requesterName: 'डेभिड गुरुङ (David Gurung)',
+    location: 'Butwal, Rupandehi',
+    category: 'guidance',
+    titleEn: 'Divine Guidance & Wisdom for Career and Mission Direction',
+    titleNe: 'उच्च शिक्षा र सेवाकाईको निर्णयमा ईश्वरीय मार्गदर्शन र बुद्धिको निम्ति',
+    requestTextEn: 'Seeking God’s wisdom and clear guidance regarding a transition into community ministry and higher theological studies.',
+    requestTextNe: 'जीवनको नयाँ मोडमा सेवाकाई र अध्ययनका लागि परमेश्वरको स्पष्ट अगुवाइ, बुद्धि र ढोका खुल्न सकोस् भनी प्रार्थना गरिदिनुहोस्।',
+    visibility: 'public',
+    moderationStatus: 'approved',
+    prayerStatus: 'active',
+    prayedCount: 164,
+    createdAtBs: '२०८३ कार्तिक १३',
+    createdAtAd: '2026-10-30',
+  },
+  {
+    id: 6,
+    requesterName: 'गोप्य विश्वासी (Confidential Believer)',
+    location: 'Kathmandu',
+    category: 'family',
+    titleEn: 'Family Reconciliation, Healing and Peace at Home',
+    titleNe: 'पारिवारिक सम्बन्धमा मेलमिलाप, चङ्गाइ र शान्तिको निम्ति गोप्य प्रार्थना',
+    requestTextEn: 'Confidential intercession requested for healing strained family relationships and restoring peace in our household.',
+    requestTextNe: 'परिवारमा मेलमिलाप, समझदारी र परमेश्वरको शान्ति पुनर्स्थापनाका लागि पास्टोरल प्रार्थना टोलीको मध्यस्थताको खाँचो छ।',
+    visibility: 'private',
+    moderationStatus: 'approved',
+    prayerStatus: 'active',
+    prayedCount: 76,
+    createdAtBs: '२०८३ कार्तिक ११',
+    createdAtAd: '2026-10-28',
+  },
+  {
+    id: 7,
+    requesterName: 'गोप्य प्रार्थना (Private Pastoral Request)',
+    location: 'Biratnagar, Morang',
+    category: 'guidance',
+    titleEn: 'Guidance and Protection During Difficult Business Transition',
+    titleNe: 'व्यवसायिक समस्या र कठिन परिस्थितिमा ईश्वरीय सुरक्षा र अगुवाइ',
+    requestTextEn: 'Seeking confidential prayer for ethical guidance and divine breakthrough during a critical business struggle.',
+    requestTextNe: 'कठिन व्यवसायिक घडीमा सहि निर्णय र परमेश्वरको अनुग्रह प्राप्त हुन सकोस् भनी गोप्य प्रार्थनाको अनुरोध।',
+    visibility: 'private',
+    moderationStatus: 'approved',
+    prayerStatus: 'active',
+    prayedCount: 42,
+    createdAtBs: '२०८३ कार्तिक ८',
+    createdAtAd: '2026-10-25',
   },
 ];
 

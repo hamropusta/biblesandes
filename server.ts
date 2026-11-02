@@ -3,7 +3,6 @@ import express, { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import {
   ADMIN_USERS,
@@ -37,11 +36,13 @@ import {
   convertBSToAD,
 } from './src/utils/nepaliDateEngine.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _dirname =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
 // Persistent runtime database state (backed by JSON file in data/db-state.json for durability)
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = path.join(_dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'susamachar-state.json');
 
 interface AppDatabaseState {
@@ -241,10 +242,28 @@ function recordAudit(adminName: string, roleName: string, action: string, module
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   app.use(express.json({ limit: '2mb' }));
   app.use('/api', apiRateLimiter);
+
+  // Direct download endpoints for cPanel deployment files
+  app.get(['/susamachar-cpanel-ready.zip', '/download/cpanel-bundle'], (_req: Request, res: Response) => {
+    const zipPath = path.join(_dirname, 'public', 'susamachar-cpanel-ready.zip');
+    if (fs.existsSync(zipPath)) {
+      return res.download(zipPath, 'susamachar-cpanel-ready.zip');
+    }
+    return res.status(404).send('Package not found');
+  });
+
+  app.get(['/dist-only.zip', '/download/dist'], (_req: Request, res: Response) => {
+    const zipPath = path.join(_dirname, 'public', 'dist-only.zip');
+    if (fs.existsSync(zipPath)) {
+      return res.download(zipPath, 'dist-only.zip');
+    }
+    return res.status(404).send('Dist package not found');
+  });
+
 
   // =========================================================================
   // 1. AUTHENTICATION ENDPOINTS
@@ -361,10 +380,10 @@ async function startServer() {
   // =========================================================================
   // 2. MULTILINGUAL HOLY BIBLE (66 BOOKS × 3 TRANSLATIONS: NE_NNRV, HI_FBI, EN_KJV)
   // =========================================================================
-  const NEPALI_BIBLE_DIR = path.join(__dirname, 'data', 'nepalibible');
-  const HINDI_BIBLE_DIR = path.join(__dirname, 'data', 'hindibible');
-  const ENGLISH_BIBLE_DIR = path.join(__dirname, 'data', 'englishbible');
-  const BIBLE_META_FILE = path.join(__dirname, 'data', 'bible-translations-meta.json');
+  const NEPALI_BIBLE_DIR = path.join(_dirname, 'data', 'nepalibible');
+  const HINDI_BIBLE_DIR = path.join(_dirname, 'data', 'hindibible');
+  const ENGLISH_BIBLE_DIR = path.join(_dirname, 'data', 'englishbible');
+  const BIBLE_META_FILE = path.join(_dirname, 'data', 'bible-translations-meta.json');
 
   interface RawNepaliBibleChapter {
     id: number | string;
@@ -1647,10 +1666,10 @@ async function startServer() {
   // =========================================================================
   app.get('/api/deliverables/:type', (req: Request, res: Response) => {
     const fileMap: Record<string, string> = {
-      schema: path.join(__dirname, 'database/schema.sql'),
-      android: path.join(__dirname, 'android/app/src/main/java/com/susamachar/app/MainActivity.kt'),
-      cpanel: path.join(__dirname, 'docs/CPANEL_DEPLOYMENT.md'),
-      api: path.join(__dirname, 'docs/API_DOCUMENTATION.md'),
+      schema: path.join(_dirname, 'database/schema.sql'),
+      android: path.join(_dirname, 'android/app/src/main/java/com/susamachar/app/MainActivity.kt'),
+      cpanel: path.join(_dirname, 'docs/CPANEL_DEPLOYMENT.md'),
+      api: path.join(_dirname, 'docs/API_DOCUMENTATION.md'),
     };
     const filePath = fileMap[req.params.type];
     if (!filePath || !fs.existsSync(filePath)) {
@@ -1763,22 +1782,67 @@ async function startServer() {
   // VITE MIDDLEWARE (DEVELOPMENT) OR STATIC SERVING (PRODUCTION)
   // =========================================================================
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+    app.listen(3000, '0.0.0.0', () => {
+      console.log('Susamachar Christian App Server running on http://localhost:3000');
+    });
   } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    const distPath = path.join(_dirname, 'dist');
+    const rootAssetsPath = path.join(_dirname, 'assets');
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+    }
+    if (fs.existsSync(rootAssetsPath)) {
+      app.use('/assets', express.static(rootAssetsPath));
+    }
+
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const distIndex = path.join(distPath, 'index.html');
+      if (fs.existsSync(distIndex)) {
+        return res.sendFile(distIndex);
+      }
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html lang="ne">
+        <head>
+          <meta charset="utf-8">
+          <title>सुसमाचार (Susamachar) - Deployment Notice</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; background: #faf8f5; color: #2d3748; padding: 40px 20px; text-align: center; }
+            .card { max-width: 620px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+            h2 { color: #8D8741; margin-top: 0; }
+            .badge { display: inline-block; background: #659DBD; color: white; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+            ol { text-align: left; background: #f7fafc; padding: 20px 20px 20px 40px; border-radius: 8px; line-height: 1.8; }
+            code { background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <span class="badge">Node.js Server is Online ✅</span>
+            <h2>⚠️ dist फोल्डर अपलोड हुन बाँकी छ</h2>
+            <p>Node.js सर्भर सफलतापूर्वक चालु भएको छ, तर <code>susamachar/</code> फोल्डर भित्र <b>dist/</b> फोल्डर फेला परेन।</p>
+            <ol>
+              <li>आफ्नो कम्प्युटरको प्रोजेक्टबाट <b>dist</b> फोल्डरलाई zip गर्नुहोस् वा सिधै <code>/home/biblesandes/susamachar/</code> भित्र अपलोड गरी Extract गर्नुहोस्।</li>
+              <li>साथै बाइबल डाटाका लागि <b>data</b> फोल्डर पनि <code>/home/biblesandes/susamachar/</code> भित्र हुनुपर्छ।</li>
+              <li>cPanel मा Node.js App लाई एकपटक <b>Restart</b> गर्नुहोस्।</li>
+            </ol>
+          </div>
+        </body>
+        </html>
+      `);
+    });
+
+    const serverPort = process.env.PORT || 3000;
+    app.listen(serverPort, () => {
+      console.log(`Susamachar Christian App Server running on port ${serverPort}`);
     });
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Susamachar Christian App Server running on http://localhost:${PORT}`);
-  });
 }
 
 startServer();

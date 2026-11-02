@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award,
   BarChart3,
+  Bookmark,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
@@ -14,6 +15,8 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
+  Save,
   Search,
   Sparkles,
   Trash2,
@@ -85,6 +88,29 @@ interface QuizAttemptRecord {
     explanation: string;
     isCorrect: boolean;
   }>;
+}
+
+export interface SavedQuizSession {
+  savedAt: string;
+  quizSource: 'nepali_bilingual' | '66_books_repo';
+  selectedBook: string;
+  selectedChapter: string;
+  selectedDifficulty: string;
+  questionLimit: number;
+  timerSeconds: number;
+  activeQuestions: BibleQuizQuestion[];
+  currentIndex: number;
+  currentChoices: string[];
+  eliminatedChoices: string[];
+  showHint: boolean;
+  selectedChoice: string | null;
+  revealed: boolean;
+  score: number;
+  streak: number;
+  bestStreak: number;
+  timeLeft: number;
+  elapsedTotalSeconds: number;
+  answersLog: QuizAttemptRecord['answersLog'];
 }
 
 const BOOK_NAME_NE_MAP: Record<string, { ne: string; testament: 'OT' | 'NT'; order: number }> = {
@@ -568,6 +594,17 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
   const [elapsedTotalSeconds, setElapsedTotalSeconds] = useState<number>(0);
   const [answersLog, setAnswersLog] = useState<QuizAttemptRecord['answersLog']>([]);
 
+  // LocalStorage Saved Quiz Session for Resuming Later
+  const [savedSession, setSavedSession] = useState<SavedQuizSession | null>(() => {
+    try {
+      const raw = localStorage.getItem('biblesandes_active_quiz_session');
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
   // Question Bank Explorer State (matching BibleQuanes.jsx)
   const [bankBook, setBankBook] = useState<string>('Genesis');
   const [bankChapter, setBankChapter] = useState<string>('');
@@ -657,6 +694,109 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizStarted, revealed, timeLeft, timerSeconds, currentIndex, activeQuestions.length]);
 
+  // Automatically save active quiz session to localStorage whenever quiz progress changes
+  useEffect(() => {
+    if (quizStarted && activeQuestions.length > 0 && currentIndex < activeQuestions.length) {
+      const sessionToSave: SavedQuizSession = {
+        savedAt: new Date().toISOString(),
+        quizSource,
+        selectedBook,
+        selectedChapter,
+        selectedDifficulty,
+        questionLimit,
+        timerSeconds,
+        activeQuestions,
+        currentIndex,
+        currentChoices,
+        eliminatedChoices,
+        showHint,
+        selectedChoice,
+        revealed,
+        score,
+        streak,
+        bestStreak,
+        timeLeft,
+        elapsedTotalSeconds,
+        answersLog,
+      };
+      try {
+        localStorage.setItem('biblesandes_active_quiz_session', JSON.stringify(sessionToSave));
+        setSavedSession(sessionToSave);
+      } catch {
+        // ignore quota
+      }
+    }
+  }, [
+    quizStarted,
+    activeQuestions,
+    currentIndex,
+    currentChoices,
+    eliminatedChoices,
+    showHint,
+    selectedChoice,
+    revealed,
+    score,
+    streak,
+    bestStreak,
+    timeLeft,
+    elapsedTotalSeconds,
+    answersLog,
+    quizSource,
+    selectedBook,
+    selectedChapter,
+    selectedDifficulty,
+    questionLimit,
+    timerSeconds,
+  ]);
+
+  const handleResumeQuizSession = () => {
+    if (!savedSession || !savedSession.activeQuestions?.length) return;
+    setQuizSource(savedSession.quizSource);
+    setSelectedBook(savedSession.selectedBook);
+    setSelectedChapter(savedSession.selectedChapter);
+    setSelectedDifficulty(savedSession.selectedDifficulty);
+    setQuestionLimit(savedSession.questionLimit);
+    setTimerSeconds(savedSession.timerSeconds);
+    setActiveQuestions(savedSession.activeQuestions);
+    setCurrentIndex(savedSession.currentIndex);
+    setCurrentChoices(savedSession.currentChoices);
+    setEliminatedChoices(savedSession.eliminatedChoices || []);
+    setShowHint(savedSession.showHint || false);
+    setSelectedChoice(savedSession.selectedChoice || null);
+    setRevealed(savedSession.revealed || false);
+    setScore(savedSession.score || 0);
+    setStreak(savedSession.streak || 0);
+    setBestStreak(savedSession.bestStreak || 0);
+    setTimeLeft(savedSession.timeLeft > 0 ? savedSession.timeLeft : savedSession.timerSeconds);
+    setElapsedTotalSeconds(savedSession.elapsedTotalSeconds || 0);
+    setAnswersLog(savedSession.answersLog || []);
+    setQuizStarted(true);
+    onNotify(
+      lang === 'ne'
+        ? `अधुरो क्विज पुनः सुरु भयो! (प्रश्न ${toNepaliDigits(savedSession.currentIndex + 1)} / ${toNepaliDigits(savedSession.activeQuestions.length)})`
+        : `Quiz resumed from Question ${savedSession.currentIndex + 1} of ${savedSession.activeQuestions.length}!`
+    );
+  };
+
+  const handleDiscardSavedSession = () => {
+    try {
+      localStorage.removeItem('biblesandes_active_quiz_session');
+    } catch {
+      // ignore
+    }
+    setSavedSession(null);
+    onNotify(lang === 'ne' ? 'अघिल्लो अधुरो क्विज सत्र हटाइयो।' : 'Saved quiz session discarded.');
+  };
+
+  const handlePauseAndSaveQuiz = () => {
+    setQuizStarted(false);
+    onNotify(
+      lang === 'ne'
+        ? 'क्विज सुरक्षित गरियो! तपाईं जुनसुकै बेला फर्केर यहींबाट सुरु गर्न सक्नुहुन्छ।'
+        : 'Quiz progress saved! You can resume anytime from where you left off.'
+    );
+  };
+
   // Available chapters for selected book in Setup
   const availableChaptersForSetup = useMemo(() => {
     if (quizSource === 'nepali_bilingual') {
@@ -698,6 +838,13 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
 
   // Start Quiz handler
   const handleStartQuiz = async () => {
+    // Clear any previous interrupted session when explicitly starting a brand new quiz
+    try {
+      localStorage.removeItem('biblesandes_active_quiz_session');
+      setSavedSession(null);
+    } catch {
+      // ignore
+    }
     setLoadingQuestions(true);
     try {
       let candidatePool: BibleQuizQuestion[] = [];
@@ -841,6 +988,14 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
         percent,
         answersLog: updatedLog,
       };
+      // Clear active saved session since quiz is completed
+      try {
+        localStorage.removeItem('biblesandes_active_quiz_session');
+        setSavedSession(null);
+      } catch {
+        // ignore
+      }
+
       setQuizHistory((prev) => {
         const next = [newReport, ...prev].slice(0, 30);
         try {
@@ -1100,7 +1255,127 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
         <div>
           {!quizStarted ? (
             /* QUIZ SETUP SCREEN (QuizSetup.jsx) */
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="space-y-6">
+              {/* RESUME INTERRUPTED QUIZ BANNER (Stored in LocalStorage) */}
+              {savedSession && savedSession.activeQuestions && savedSession.activeQuestions.length > 0 && savedSession.currentIndex < savedSession.activeQuestions.length && (
+                <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-400/20 dark:via-slate-900 dark:to-slate-900 border-2 border-amber-500/50 rounded-3xl p-5 sm:p-7 space-y-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                        <RotateCcw className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-amber-500/25 text-amber-900 dark:text-amber-200">
+                            {lang === 'ne' ? 'अधुरो क्विज सत्र सुरक्षित छ' : 'Saved Quiz Session Found'}
+                          </span>
+                          {savedSession.savedAt && (
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                              {new Date(savedSession.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, {new Date(savedSession.savedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-1">
+                          {savedSession.selectedBook
+                            ? formatBookDisplay(savedSession.selectedBook)
+                            : lang === 'ne'
+                            ? 'बाइबल प्रश्नोत्तरी (Bilingual Curated)'
+                            : 'Scripture Quiz (Curated Mix)'}{' '}
+                          {savedSession.selectedChapter
+                            ? lang === 'ne'
+                              ? `· अध्याय ${toNepaliDigits(savedSession.selectedChapter)}`
+                              : `· Chapter ${savedSession.selectedChapter}`
+                            : ''}
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          {lang === 'ne'
+                            ? `तपाईंले यो क्विज प्रश्न ${toNepaliDigits(savedSession.currentIndex + 1)} मा छोड्नुभएको थियो। के तपाईं यहींबाट निरन्तरता दिन चाहनुहुन्छ?`
+                            : `You left this quiz at Question ${savedSession.currentIndex + 1} of ${savedSession.activeQuestions.length}. Would you like to resume?`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleResumeQuizSession}
+                        className="h-11 px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>
+                          {lang === 'ne'
+                            ? `जारी राख्नुहोस् (प्रश्न ${toNepaliDigits(savedSession.currentIndex + 1)} बाट)`
+                            : `Resume Quiz (from Q${savedSession.currentIndex + 1})`}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDiscardSavedSession}
+                        className="h-11 px-3.5 rounded-xl border border-stone-300 dark:border-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title={lang === 'ne' ? 'यो सत्र खारेज गरी नयाँ सुरु गर्नुहोस्' : 'Discard saved session'}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                        <span className="hidden sm:inline">{lang === 'ne' ? 'हटाउनुहोस्' : 'Discard'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress & Score Pills */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                    <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-amber-500/20 shadow-2xs">
+                      <span className="text-[11px] text-slate-500 block">
+                        {lang === 'ne' ? 'प्रगति' : 'Progress'}
+                      </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white text-sm">
+                        {toNepaliDigits(savedSession.currentIndex + 1)} / {toNepaliDigits(savedSession.activeQuestions.length)}{' '}
+                        <span className="text-[11px] text-amber-700 dark:text-amber-300 font-sans">
+                          ({Math.round(((savedSession.currentIndex) / savedSession.activeQuestions.length) * 100)}% complete)
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-amber-500/20 shadow-2xs">
+                      <span className="text-[11px] text-slate-500 block">
+                        {lang === 'ne' ? 'हालसम्मको अङ्क' : 'Current Score'}
+                      </span>
+                      <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400 text-sm">
+                        {toNepaliDigits(savedSession.score)} / {toNepaliDigits(savedSession.currentIndex || 1)}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-amber-500/20 shadow-2xs">
+                      <span className="text-[11px] text-slate-500 block">
+                        {lang === 'ne' ? 'स्ट्रिक' : 'Streak'}
+                      </span>
+                      <span className="font-bold font-mono text-amber-600 dark:text-amber-400 text-sm">
+                        {savedSession.streak} 🔥
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-amber-500/20 shadow-2xs">
+                      <span className="text-[11px] text-slate-500 block">
+                        {lang === 'ne' ? 'कठिनाइ' : 'Difficulty'}
+                      </span>
+                      <span className="font-bold capitalize text-slate-800 dark:text-slate-200 text-sm">
+                        {savedSession.selectedDifficulty || (lang === 'ne' ? 'सबै तह' : 'All Levels')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual Completion Bar */}
+                  <div className="w-full h-2 bg-amber-500/20 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-300"
+                      style={{
+                        width: `${Math.round(((savedSession.currentIndex) / savedSession.activeQuestions.length) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6">
                 <div className="flex items-center justify-between pb-4 border-b border-stone-200 dark:border-slate-800">
                   <div>
@@ -1443,6 +1718,7 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
                 )}
               </div>
             </div>
+          </div>
           ) : currentIndex >= activeQuestions.length ? (
             /* QUIZ COMPLETE SCORECARD SCREEN (matching Quiz.jsx done state) */
             <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-3xl p-6 sm:p-10 max-w-3xl mx-auto text-center space-y-6 shadow-sm">
@@ -1572,8 +1848,18 @@ export const BibleQuizView: React.FC<BibleQuizViewProps> = ({ lang, onNotify, on
                       {lang === 'ne' ? `अङ्क: ${toNepaliDigits(score)}` : `Score: ${score}`}
                     </span>
                     <button
-                      onClick={() => setQuizStarted(false)}
-                      className="text-xs font-semibold text-slate-500 hover:text-red-800 dark:hover:text-amber-400"
+                      type="button"
+                      onClick={handlePauseAndSaveQuiz}
+                      className="h-7 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/35 text-amber-800 dark:text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title={lang === 'ne' ? 'क्विज प्रगति सेभ गर्नुहोस् र पछि खेल्नुहोस्' : 'Save progress and resume later'}
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{lang === 'ne' ? 'सेभ गरी रोक्नुहोस्' : 'Save & Pause'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePauseAndSaveQuiz}
+                      className="text-xs font-semibold text-slate-500 hover:text-red-800 dark:hover:text-amber-400 cursor-pointer"
                     >
                       {lang === 'ne' ? 'बन्द गर्नुहोस् ✕' : 'Exit Quiz ✕'}
                     </button>

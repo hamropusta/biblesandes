@@ -5,6 +5,7 @@ import {
   Calendar,
   Coins,
   Download,
+  ExternalLink,
   Heart,
   Image as ImageIcon,
   MapPin,
@@ -20,6 +21,7 @@ import {
   Upload,
   Volume2,
   Wifi,
+  Youtube,
 } from 'lucide-react';
 import {
   ChristianEventItem,
@@ -246,8 +248,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                     ? radioStations.find((s) => s.id === activeStationId)?.nameNe
                     : radioStations.find((s) => s.id === activeStationId)?.nameEn
                   : lang === 'ne'
-                  ? 'सुसमाचार इसाई एफ.एम. रेडियो र YouTube भजन प्लेयर'
-                  : 'Susamachar Christian FM Radio & YouTube Worship Player'}
+                  ? 'सुसमाचार इसाई एफ.एम. रेडियो र YouTube'
+                  : 'Susamachar Christian FM Radio & YouTube'}
               </h2>
               <p className="text-xs text-slate-300 max-w-2xl">
                 {activeStationId
@@ -255,8 +257,8 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
                     ? radioStations.find((s) => s.id === activeStationId)?.currentProgramNe
                     : radioStations.find((s) => s.id === activeStationId)?.currentProgramEn
                   : lang === 'ne'
-                  ? 'तलका कुनै पनि प्रत्यक्ष एफ.एम. रेडियो स्टेशन सुन्नुहोस् वा YouTube बाट कुनै पनि ख्रीष्टिय भजन/संगीतको लिङ्क राखेर सिधै बजाउनुहोस्।'
-                  : 'Listen to live Christian FM stations below or paste any YouTube Christian worship/music link to play directly.'}
+                  ? 'तलका कुनै पनि प्रत्यक्ष एफ.एम. रेडियो स्टेशन सुन्नुहोस् वा हाम्रो आधिकारिक YouTube च्यानल @susamacharnp मा भजन तथा बचन हेर्नुहोस्।'
+                  : 'Listen to live Christian FM stations below or visit our official YouTube channel @susamacharnp.'}
               </p>
             </div>
 
@@ -296,97 +298,37 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
             </div>
           </div>
 
-          {/* YouTube Worship & Music Link Player */}
-          <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-bold text-red-800 dark:text-amber-400">
-                  {lang === 'ne'
-                    ? 'YouTube भजन तथा आराधना संगीत प्लेयर (Play Music from YouTube)'
-                    : 'YouTube Worship & Christian Music Link Player'}
-                </p>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                  {lang === 'ne'
-                    ? 'कुनै पनि YouTube भजन वा संगीतको लिङ्क पेस्ट गरेर बजाउनुहोस्'
-                    : 'Paste Any YouTube Worship or Music Link to Play Immediately'}
-                </h3>
+          {/* Official YouTube Channel Showcase */}
+          <div className="bg-gradient-to-r from-red-700 via-rose-700 to-red-800 rounded-2xl p-6 text-white shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0">
+                <Youtube className="w-7 h-7 text-white" />
               </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  {
-                    labelNe: '🎵 नेपाली आराधना धुन १',
-                    labelEn: '🎵 Nepali Worship 1',
-                    embed: 'https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1',
-                  },
-                  {
-                    labelNe: '🎵 शान्त प्रार्थना संगीत',
-                    labelEn: '🎵 Peaceful Prayer Instrumental',
-                    embed: 'https://www.youtube.com/embed/DWcJFNfaw9c?autoplay=1',
-                  },
-                ].map((preset, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      setActiveYtMusicEmbed(preset.embed);
-                      setActiveYtTitle(lang === 'ne' ? preset.labelNe : preset.labelEn);
-                    }}
-                    className="h-8 px-3 rounded-lg bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
-                  >
-                    {lang === 'ne' ? preset.labelNe : preset.labelEn}
-                  </button>
-                ))}
+              <div className="space-y-0.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-bold uppercase tracking-wider text-white">
+                  YouTube Official Channel
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  {lang === 'ne' ? 'सुसमाचार आधिकारिक YouTube च्यानल' : 'Susamachar Official YouTube Channel'}
+                </h3>
+                <p className="text-xs text-red-100 max-w-xl">
+                  {lang === 'ne'
+                    ? 'ख्रीष्टिय भजन, आराधना, बाइबल सन्देश र बचनका सम्पूर्ण नयाँ भिडियोहरू हेर्न @susamacharnp मा जानुहोस्।'
+                    : 'Watch Christian hymns, worship music, sermons, and faith videos on @susamacharnp.'}
+                </p>
               </div>
             </div>
 
-            <form onSubmit={handlePlayYoutubeMusicLink} className="flex flex-col sm:flex-row gap-2.5">
-              <input
-                type="url"
-                value={ytMusicInput}
-                onChange={(e) => setYtMusicInput(e.target.value)}
-                placeholder={
-                  lang === 'ne'
-                    ? 'YouTube भजन वा संगीतको लिङ्क राख्नुहोस् (उदा: https://www.youtube.com/watch?v=...)'
-                    : 'Paste YouTube music/worship link (e.g. https://www.youtube.com/watch?v=...)'
-                }
-                className="flex-1 h-11 px-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-xs"
-              />
-              <button
-                type="submit"
-                className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center justify-center gap-2 shrink-0"
-              >
-                <Play className="w-4 h-4" />
-                <span>{lang === 'ne' ? 'YouTube संगीत बजाउनुहोस्' : 'Play YouTube Music'}</span>
-              </button>
-              {activeYtMusicEmbed && (
-                <button
-                  type="button"
-                  onClick={() => setActiveYtMusicEmbed(null)}
-                  className="h-11 px-4 rounded-xl bg-stone-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold"
-                >
-                  {lang === 'ne' ? 'बन्द गर्नुहोस्' : 'Close Player'}
-                </button>
-              )}
-            </form>
-
-            {activeYtMusicEmbed && (
-              <div className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-slate-950">
-                <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between text-xs">
-                  <span className="font-bold text-amber-300">{activeYtTitle}</span>
-                  <span className="text-slate-400">YouTube Audio / Video Stream</span>
-                </div>
-                <div className="aspect-video max-h-[340px] w-full">
-                  <iframe
-                    src={activeYtMusicEmbed}
-                    title={activeYtTitle}
-                    className="w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              </div>
-            )}
+            <a
+              href="https://www.youtube.com/@susamacharnp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-11 px-5 rounded-xl bg-white hover:bg-stone-100 text-red-700 font-bold text-xs flex items-center gap-2 transition-all shadow-xs whitespace-nowrap shrink-0 group"
+            >
+              <Youtube className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
+              <span>{lang === 'ne' ? 'YouTube खोल्नुहोस् (@susamacharnp)' : 'Open YouTube (@susamacharnp)'}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-red-600" />
+            </a>
           </div>
 
           {/* Radio Stations Grid */}

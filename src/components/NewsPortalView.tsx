@@ -2,12 +2,15 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bookmark,
+  Copy,
   ExternalLink,
   Eye,
+  Facebook,
   Film,
   Globe,
   Heart,
   Image as ImageIcon,
+  MessageCircle,
   MessageSquarePlus,
   Newspaper,
   PlayCircle,
@@ -87,6 +90,7 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
   const [filterMode, setFilterMode] = useState<'all' | 'featured' | 'trending' | 'saved' | 'video' | 'short' | 'social'>('all');
   const [activeArticle, setActiveArticle] = useState<NewsArticle | null>(null);
   const [likedPostIds, setLikedPostIds] = useState<number[]>([]);
+  const [openShareMenuId, setOpenShareMenuId] = useState<number | null>(null);
 
   // Social Post / Article / YouTube Video / YouTube Shorts Composer State
   const [showComposer, setShowComposer] = useState<boolean>(false);
@@ -225,20 +229,74 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
     );
   };
 
-  const handleShareNews = async (art: NewsArticle) => {
+  const getArticleShareData = (art: NewsArticle) => {
     const title = lang === 'ne' ? art.titleNe : art.titleEn;
     const summary = lang === 'ne' ? art.summaryNe : art.summaryEn;
-    const shareText = `${title}\n${summary}\n— बाइबल सन्देश (biblesandes.com)`;
-    if (navigator.share) {
+    const baseUrl =
+      typeof window !== 'undefined' ? window.location.origin : 'https://biblesandes.com';
+    const url = art.sourceUrl && art.sourceUrl.startsWith('http')
+      ? art.sourceUrl
+      : `${baseUrl}/#news-${art.id}`;
+    const shareText = `${title}\n${summary}\n— सुसमाचार · बाइबल सन्देश (${url})`;
+    return { title, summary, url, shareText };
+  };
+
+  const handleShareNews = async (
+    art: NewsArticle,
+    platform?: 'native' | 'facebook' | 'whatsapp' | 'x' | 'copy'
+  ) => {
+    const { title, url, shareText } = getArticleShareData(art);
+
+    if (platform === 'facebook') {
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(title)}`;
+      window.open(fbUrl, '_blank', 'noopener,noreferrer');
+      setOpenShareMenuId(null);
+      return;
+    }
+
+    if (platform === 'whatsapp') {
+      const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      setOpenShareMenuId(null);
+      return;
+    }
+
+    if (platform === 'x') {
+      const xUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
+      window.open(xUrl, '_blank', 'noopener,noreferrer');
+      setOpenShareMenuId(null);
+      return;
+    }
+
+    if (platform === 'copy') {
+      navigator.clipboard?.writeText(`${title}\n${url}`);
+      onNotify(
+        lang === 'ne'
+          ? 'समाचार लिंक क्लिपबोर्डमा कपी गरियो!'
+          : 'Article link copied to clipboard!'
+      );
+      setOpenShareMenuId(null);
+      return;
+    }
+
+    // Default or 'native': try Web Share API first, then toggle social share menu or copy
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title, text: shareText });
+        await navigator.share({ title, text: shareText, url });
+        setOpenShareMenuId(null);
         return;
       } catch {
-        // fallback
+        // User cancelled or share failed; show social share options
       }
     }
-    navigator.clipboard?.writeText(shareText);
-    onNotify(lang === 'ne' ? 'समाचार लिंक र विवरण कपी गरियो!' : 'News article link copied to clipboard!');
+
+    setOpenShareMenuId((prev) => (prev === art.id ? null : art.id));
+    navigator.clipboard?.writeText(`${title}\n${url}`);
+    onNotify(
+      lang === 'ne'
+        ? 'समाचार लिंक कपी गरियो! सामाजिक सञ्जालमा सेयर गर्न विकल्प छान्नुहोस्।'
+        : 'Article link copied! Choose a social network to share.'
+    );
   };
 
   // Full Article Reader View — Strictly English when lang === 'en', strictly Nepali when lang === 'ne'
@@ -419,14 +477,33 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
               <div
                 key={rel.id}
                 onClick={() => setActiveArticle(rel)}
-                className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-4 cursor-pointer hover:border-red-800 transition-colors space-y-2"
+                className="news-card bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-4 cursor-pointer hover:border-red-800 transition-colors flex flex-col justify-between gap-3"
               >
-                <p className="text-xs text-red-800 dark:text-amber-400 font-medium">
-                  {lang === 'ne' ? rel.categoryNameNe : rel.categoryNameEn} · {rel.publishedAtBs} ({rel.publishedAtAd})
-                </p>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
-                  {lang === 'ne' ? rel.titleNe : rel.titleEn}
-                </h3>
+                <div className="space-y-2">
+                  <p className="text-xs text-red-800 dark:text-amber-400 font-medium">
+                    {lang === 'ne' ? rel.categoryNameNe : rel.categoryNameEn} · {rel.publishedAtBs} ({rel.publishedAtAd})
+                  </p>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
+                    {lang === 'ne' ? rel.titleNe : rel.titleEn}
+                  </h3>
+                </div>
+                <div className="pt-2 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-red-800 dark:text-amber-400">
+                    {lang === 'ne' ? 'पूरा पढ्नुहोस् →' : 'Read More →'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShareNews(rel);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-slate-700 dark:text-slate-300 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                    title={lang === 'ne' ? 'सेयर गर्नुहोस्' : 'Share Article'}
+                  >
+                    <Share2 className="w-3 h-3" />
+                    <span>{lang === 'ne' ? 'सेयर' : 'Share'}</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -781,7 +858,7 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
             return (
               <article
                 key={art.id}
-                className="bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-stone-400 dark:hover:border-slate-700 transition-colors"
+                className="news-card bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-stone-400 dark:hover:border-slate-700 transition-colors relative"
               >
                 <div>
                   {/* Media Header: Embedded YouTube / Shorts or Real Nepal Photo */}
@@ -864,49 +941,119 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
                   </div>
                 </div>
 
-                <div className="px-5 py-3.5 border-t border-stone-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
-                    {displayAuthor}
-                  </span>
+                <div className="border-t border-stone-100 dark:border-slate-800/80">
+                  {/* Social & Native Share Bar (Revealed when Share is clicked or toggled) */}
+                  {openShareMenuId === art.id && (
+                    <div className="px-4 py-2.5 bg-stone-50 dark:bg-slate-950 border-b border-stone-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <span className="font-bold text-slate-600 dark:text-slate-300">
+                        {lang === 'ne' ? 'सेयर माध्यम:' : 'Share via:'}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleShareNews(art, 'native')}
+                          className="px-2.5 py-1 rounded-lg bg-red-800 hover:bg-red-900 text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Native Device Share"
+                        >
+                          <Share2 className="w-3 h-3" />
+                          <span>{lang === 'ne' ? 'डिभाइस सेयर' : 'Native Share'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareNews(art, 'whatsapp')}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Share on WhatsApp"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>WhatsApp</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareNews(art, 'facebook')}
+                          className="px-2.5 py-1 rounded-lg bg-[#1877F2] hover:bg-blue-700 text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Share on Facebook"
+                        >
+                          <Facebook className="w-3 h-3" />
+                          <span>Facebook</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareNews(art, 'x')}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-black text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Share on X (Twitter)"
+                        >
+                          <span className="font-mono font-black text-[10px]">𝕏</span>
+                          <span>Post</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareNews(art, 'copy')}
+                          className="px-2.5 py-1 rounded-lg bg-stone-200 dark:bg-slate-800 hover:bg-stone-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Copy Link"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{lang === 'ne' ? 'लिंक कपी' : 'Copy Link'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleToggleLike(art.id)}
-                      className={`px-2 py-1 rounded-lg inline-flex items-center gap-1 font-mono text-[11px] ${
-                        isLiked
-                          ? 'bg-red-800/10 text-red-800 dark:text-amber-400 font-bold'
-                          : 'text-slate-500 hover:text-red-800'
-                      }`}
-                      title="Like"
-                    >
-                      <Heart className="w-3.5 h-3.5" fill={isLiked ? 'currentColor' : 'none'} />
-                      <span>{(art.likesCount || 12) + (isLiked ? 1 : 0)}</span>
-                    </button>
+                  <div className="px-5 py-3.5 flex items-center justify-between text-xs gap-2">
+                    <span className="text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
+                      {displayAuthor}
+                    </span>
 
-                    <button
-                      onClick={() => onToggleSaveNews(art.id)}
-                      className={`p-1.5 rounded-lg ${
-                        isSaved ? 'text-red-800 dark:text-amber-400' : 'text-slate-400 hover:text-slate-700'
-                      }`}
-                      title="Bookmark"
-                    >
-                      <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLike(art.id)}
+                        className={`px-2 py-1 rounded-lg inline-flex items-center gap-1 font-mono text-[11px] ${
+                          isLiked
+                            ? 'bg-red-800/10 text-red-800 dark:text-amber-400 font-bold'
+                            : 'text-slate-500 hover:text-red-800'
+                        }`}
+                        title="Like"
+                      >
+                        <Heart className="w-3.5 h-3.5" fill={isLiked ? 'currentColor' : 'none'} />
+                        <span>{(art.likesCount || 12) + (isLiked ? 1 : 0)}</span>
+                      </button>
 
-                    <button
-                      onClick={() => handleShareNews(art)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700"
-                      title="Share"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onToggleSaveNews(art.id)}
+                        className={`p-1.5 rounded-lg ${
+                          isSaved ? 'text-red-800 dark:text-amber-400' : 'text-slate-400 hover:text-slate-700'
+                        }`}
+                        title="Bookmark"
+                      >
+                        <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
+                      </button>
 
-                    <button
-                      onClick={() => setActiveArticle(art)}
-                      className="font-semibold text-red-800 dark:text-amber-400 hover:underline ml-1 whitespace-nowrap shrink-0"
-                    >
-                      {lang === 'ne' ? 'पूरा पढ्नुहोस् →' : 'Read Full →'}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenShareMenuId((prev) => (prev === art.id ? null : art.id))
+                        }
+                        onDoubleClick={() => handleShareNews(art, 'native')}
+                        className={`px-2.5 py-1 rounded-lg inline-flex items-center gap-1 font-semibold transition-colors cursor-pointer ${
+                          openShareMenuId === art.id
+                            ? 'bg-red-800 text-white'
+                            : 'bg-stone-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-red-800 hover:text-white'
+                        }`}
+                        title={lang === 'ne' ? 'सामाजिक सञ्जाल वा डिभाइसमा सेयर गर्नुहोस्' : 'Share via Native Share or Social Media'}
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>{lang === 'ne' ? 'सेयर (Share)' : 'Share'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveArticle(art)}
+                        className="font-semibold text-red-800 dark:text-amber-400 hover:underline ml-1 whitespace-nowrap shrink-0"
+                      >
+                        {lang === 'ne' ? 'पूरा पढ्नुहोस् →' : 'Read Full →'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>

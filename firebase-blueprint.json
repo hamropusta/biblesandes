@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with display name, email, and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "pastor", "admin"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Prayer": {
+      "title": "Prayer",
+      "description": "Prayer requests shared on the community prayer wall",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "author": { "type": "string", "maxLength": 100 },
+        "prayerText": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "enum": ["चंगाई", "परिवार", "मार्गदर्शन", "शान्ति", "आर्थिक", "धन्यवाद", "अन्य", "healing", "family", "guidance", "peace", "financial", "thanksgiving", "other"] },
+        "date": { "type": "string" },
+        "prayerCount": { "type": "number" },
+        "visibility": { "type": "string", "enum": ["public", "private", "members"] },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "prayerText", "category", "visibility"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Private Bible study notes and sermon reflections",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "content": { "type": "string", "maxLength": 10000 },
+        "tags": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "content", "userId"]
+    },
+    "Wallpaper": {
+      "title": "Wallpaper",
+      "description": "Created or saved Bible verse wallpapers and backgrounds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "verseRef": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "imageUrl"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Security audit logs for admin actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" },
+        "ip": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["action", "timestamp", "status"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "System administrators mapping",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "grantedAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/prayers/{prayerId}": {
+      "schema": "Prayer",
+      "description": "Community prayer wall requests and intercessions"
+    },
+    "/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Private user study notes"
+    },
+    "/wallpapers/{wallpaperId}": {
+      "schema": "Wallpaper",
+      "description": "Community verse wallpapers"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Admin authorization mapping"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security audit records"
+    }
+  }
+}

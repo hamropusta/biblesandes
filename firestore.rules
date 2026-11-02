@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid']));
+      allow delete: if isAdmin();
+    }
+
+    // Prayers collection
+    match /prayers/{prayerId} {
+      allow get: if resource.data.visibility == 'public' || (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow list: if resource.data.visibility == 'public' || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if request.resource.data.title is string
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.prayerText is string
+                    && request.resource.data.prayerText.size() <= 2000;
+      allow update: if (isSignedIn() && resource.data.userId == request.auth.uid)
+                    || isAdmin()
+                    || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prayerCount']));
+      allow delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // Notes collection (private Bible notes)
+    match /notes/{noteId} {
+      allow get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Wallpapers collection
+    match /wallpapers/{wallpaperId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Audit logs collection
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
+  }
+}

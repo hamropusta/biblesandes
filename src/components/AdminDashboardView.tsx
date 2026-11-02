@@ -43,6 +43,7 @@ interface AdminDashboardViewProps {
   onAddRadioStation: (payload: { nameEn: string; nameNe: string; frequency: string; locationEn: string; locationNe: string; streamUrl: string }) => Promise<void>;
   auditLogs: AuditLogItem[];
   onNotify: (msg: string) => void;
+  onExitAdmin?: () => void;
 }
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
@@ -60,6 +61,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onAddRadioStation,
   auditLogs,
   onNotify,
+  onExitAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'news' | 'hymns' | 'prayer' | 'rates' | 'radio' | 'admins' | 'deliverables'
@@ -191,7 +193,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           </p>
         </div>
 
-        {/* Role Simulator Switcher to test all 8 Admin Roles */}
+        {/* Role Simulator Switcher to test all 8 Admin Roles + Exit to Website */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           <label className="text-xs text-slate-400 whitespace-nowrap">
             {lang === 'ne' ? 'एडमिन भूमिका छान्नुहोस् (Test 8 Roles):' : 'Switch Active Admin Role (RBAC):'}
@@ -205,7 +207,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 onNotify(`Switched RBAC session to ${found.roleNameEn} (${found.fullNameEn})`);
               }
             }}
-            className="h-10 px-3 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-white"
+            className="h-10 px-3 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-white cursor-pointer"
           >
             {ADMIN_USERS.map((adm) => (
               <option key={adm.id} value={adm.id}>
@@ -213,6 +215,16 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </option>
             ))}
           </select>
+
+          {onExitAdmin && (
+            <button
+              onClick={onExitAdmin}
+              className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              title="Exit Admin to Website"
+            >
+              <span>{lang === 'ne' ? '← वेबसाइट हेर्नुहोस्' : '← View Website'}</span>
+            </button>
+          )}
         </div>
       </div>
 

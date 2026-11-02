@@ -16,9 +16,11 @@ import {
   Copy,
   DollarSign,
   Download,
+  ExternalLink,
   Facebook,
   FileText,
   Film,
+  FolderOpen,
   Globe,
   HeartHandshake,
   Home,
@@ -46,7 +48,9 @@ import {
   StickyNote,
   Sun,
   Trophy,
+  Trash2,
   User,
+  Users,
   Video,
   Volume2,
   WifiOff,
@@ -60,11 +64,16 @@ import { BibleModuleView } from './components/BibleModuleView';
 import { BibleQuizView } from './components/BibleQuizView';
 import { CalendarConverterView } from './components/CalendarConverterView';
 import { CommunityModulesView } from './components/CommunityModulesView';
+import { LegalAndAboutView, LegalTabType } from './components/LegalAndAboutView';
 import { LifeNotesPodcastsView } from './components/LifeNotesPodcastsView';
 import { NepaliUnicodeView } from './components/NepaliUnicodeView';
 import { NewsPortalView } from './components/NewsPortalView';
 import { PrayerWallView } from './components/PrayerWallView';
 import { VerseImageShareModal } from './components/VerseImageShareModal';
+import { CPanelDeployModal } from './components/CPanelDeployModal';
+import { GooglePickerModal } from './components/GooglePickerModal';
+import { db, testConnection, handleFirestoreError, OperationType } from './firebase';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 import {
   ADMIN_USERS,
   AdminUserRecord,
@@ -112,7 +121,12 @@ type PrimarySection =
   | 'healthtips'
   | 'forex'
   | 'unicode'
-  | 'admin';
+  | 'admin'
+  | 'privacy'
+  | 'terms'
+  | 'about'
+  | 'delete-account'
+  | 'community';
 
 export interface HomeVideoItem {
   id: string;
@@ -167,9 +181,35 @@ export default function App() {
       if (pathOrHash.includes('nepali-unicode') || pathOrHash.includes('unicode')) {
         return 'unicode';
       }
+      if (pathOrHash.includes('privacy')) return 'privacy';
+      if (pathOrHash.includes('delete-account') || pathOrHash.includes('delete_account')) return 'delete-account';
+      if (pathOrHash.includes('community')) return 'community';
+      if (pathOrHash.includes('terms')) return 'terms';
+      if (pathOrHash.includes('about')) return 'about';
     }
     return 'home';
   });
+
+  // Listen to hash changes (e.g. #privacy, #delete-account, #community, #terms, #about) for Google Play & AdMob reviewers
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      if (
+        hash === 'privacy' ||
+        hash === 'terms' ||
+        hash === 'about' ||
+        hash === 'delete-account' ||
+        hash === 'delete_account' ||
+        hash === 'community'
+      ) {
+        setActiveSection(
+          hash === 'delete_account' ? 'delete-account' : (hash as PrimarySection)
+        );
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // Application Data State (pre-written Christian news removed; only user-posted items when added)
   const [news, setNews] = useState<NewsArticle[]>(INITIAL_NEWS_ARTICLES);
@@ -236,6 +276,8 @@ export default function App() {
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [showIOSInstallModal, setShowIOSInstallModal] = useState<boolean>(false);
   const [showMobileMenuDrawer, setShowMobileMenuDrawer] = useState<boolean>(false);
+  const [showDeployModal, setShowDeployModal] = useState<boolean>(false);
+  const [showGooglePickerModal, setShowGooglePickerModal] = useState<boolean>(false);
   const [activeFooterModal, setActiveFooterModal] = useState<
     'about' | 'privacy' | 'terms' | 'tools' | 'whatsapp' | 'ai' | null
   >(null);
@@ -367,6 +409,50 @@ export default function App() {
         // Uses preloaded offline-capable state when offline
       });
   }, []);
+
+  // Firebase connection test & Firestore synchronization
+  useEffect(() => {
+    testConnection();
+
+    async function hydrateFirestorePrayers() {
+      try {
+        const snap = await getDocs(collection(db, 'prayers'));
+        if (!snap.empty) {
+          const fsPrayers: PrayerRequestItem[] = snap.docs.map((docSnap, index) => {
+            const data = docSnap.data();
+            return {
+              id: Date.now() + index,
+              requesterName: data.author || 'विश्वासी (Believer)',
+              location: data.location || 'नेपाल',
+              category: (data.category as any) || 'healing',
+              titleEn: data.title || 'Prayer Request',
+              titleNe: data.title || 'प्रार्थना अनुरोध',
+              requestTextEn: data.prayerText || '',
+              requestTextNe: data.prayerText || '',
+              visibility: (data.visibility as any) || 'public',
+              moderationStatus: 'approved',
+              prayerStatus: 'active',
+              prayedCount: data.prayerCount || 1,
+              createdAtBs: data.date || todayBS.formattedNe,
+              createdAtAd: data.createdAt ? data.createdAt.split('T')[0] : '2026-10-31',
+            };
+          });
+          setPrayers((prev) => {
+            const combined = [...fsPrayers, ...prev];
+            const seen = new Set<string>();
+            return combined.filter((p) => {
+              if (seen.has(p.titleNe)) return false;
+              seen.add(p.titleNe);
+              return true;
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Firestore prayers fallback:', err);
+      }
+    }
+    hydrateFirestorePrayers();
+  }, [todayBS.formattedNe]);
 
   const notify = (msg: string) => {
     setToastMessage(msg);
@@ -528,6 +614,15 @@ export default function App() {
       coverImage: payload.coverImage,
       descriptionNe: payload.descriptionNe,
       descriptionEn: payload.descriptionEn,
+      items: [
+        {
+          id: Date.now(),
+          mediaType: 'image',
+          mediaUrl: payload.coverImage,
+          captionEn: payload.titleEn,
+          captionNe: payload.titleNe,
+        },
+      ],
     };
     setGalleryAlbums((prev) => {
       const updated = [newAlbum, ...prev];
@@ -561,6 +656,23 @@ export default function App() {
     requestText: string;
     visibility: 'public' | 'private';
   }) => {
+    // Persist to Firebase Firestore
+    try {
+      await addDoc(collection(db, 'prayers'), {
+        title: data.title,
+        author: data.requesterName,
+        location: data.location || 'नेपाल',
+        category: data.category,
+        prayerText: data.requestText,
+        date: todayBS.formattedNe,
+        prayerCount: 1,
+        visibility: data.visibility,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Firestore prayer write note:', err);
+    }
+
     try {
       const res = await fetch('/api/prayers', {
         method: 'POST',
@@ -585,10 +697,10 @@ export default function App() {
       requestTextEn: data.requestText,
       requestTextNe: data.requestText,
       visibility: data.visibility,
-      moderationStatus: data.visibility === 'private' ? 'approved' : 'pending',
+      moderationStatus: 'approved',
       prayerStatus: 'active',
       prayedCount: 1,
-      createdAtBs: '२०८३ कार्तिक १४',
+      createdAtBs: '२०८३ कार्तिक १५',
       createdAtAd: '2026-10-31',
     };
     setPrayers((prev) => [fallbackPrayer, ...prev]);
@@ -808,14 +920,40 @@ export default function App() {
   const dailyVerse = CURATED_BIBLE_VERSES.find((v) => v.id === '43-3-16') || CURATED_BIBLE_VERSES[0];
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
+    <div className="min-h-screen flex flex-col bg-[#FAF6EC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
       {/* Hidden Real HTML5 Audio Element for Live FM Radio Streams */}
       <audio ref={audioRef} className="hidden" preload="none" />
 
+      {/* Top cPanel Deployment & Google Drive Hub Banner */}
+      <div className="bg-gradient-to-r from-emerald-800 via-stone-900 to-amber-900 text-white px-3 sm:px-6 py-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm z-40 relative">
+        <div className="flex items-center gap-2">
+          <span className="bg-emerald-500 text-white font-bold px-2 py-0.5 rounded text-[11px] shadow-xs">
+            cPanel Deploy & Drive
+          </span>
+          <span className="text-stone-200">
+            <strong>biblesandes.com</strong> को लागि <span className="text-amber-300 font-mono">dist-only.zip</span> र Google Picker मार्फत ड्राइभ व्यवस्थापन
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowGooglePickerModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-lg text-xs shadow transition-all cursor-pointer"
+          >
+            <span>Google Picker (Drive)</span>
+          </button>
+          <button
+            onClick={() => setShowDeployModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold rounded-lg text-xs shadow transition-all cursor-pointer"
+          >
+            <span>cPanel Zip / Drive खोल्नुहोस्</span>
+          </button>
+        </div>
+      </div>
+
       {/* =====================================================================
-          HEADER SYSTEM (Redesigned Clean Desktop & Mobile Header with Polished Date Badge)
+          HEADER SYSTEM (Serene Clean Header Styled with Image 3 Palette)
          ===================================================================== */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-stone-200 dark:border-slate-800 shadow-xs">
+      <header className="sticky top-0 z-30 bg-[#FAF6EC]/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-[#BC986A]/25 dark:border-slate-800 shadow-xs">
         {/* -----------------------------------------------------------------
             DESKTOP VIEW (md and up):
             1. Top Utility Bar: Polished Bilingual Date Pill on left | Search, Eng/Nep, Notifications, Account, About on right
@@ -823,25 +961,25 @@ export default function App() {
            ----------------------------------------------------------------- */}
         <div className="hidden md:block">
           {/* Row 1: Clean Utility Bar — Single-line non-wrapping Nep/Eng Date on left | Search, Eng/Nep, Alerts, Account, Theme on right */}
-          <div className="bg-gradient-to-r from-stone-100 via-amber-50/40 to-stone-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-stone-200/80 dark:border-slate-800/80">
+          <div className="bg-gradient-to-r from-[#FAF6EC] via-[#FBEEC1]/40 to-[#FAF6EC] dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 border-b border-[#BC986A]/20 dark:border-slate-800/80">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between gap-4 text-xs">
               {/* Left: Single-line Nep/Eng Date Pill (never wraps) */}
               <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 whitespace-nowrap shrink-0">
-                  <Calendar className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 whitespace-nowrap shrink-0 shadow-2xs">
+                  <Calendar className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#659DBD] shrink-0" />
                   {lang === 'ne' ? (
-                    <span className="font-bold text-red-900 dark:text-amber-300 whitespace-nowrap">
+                    <span className="font-bold text-[#8D8741] dark:text-[#FBEEC1] whitespace-nowrap">
                       वि.सं. {todayBS.formattedNe}
-                      <span className="mx-1.5 text-stone-300 dark:text-slate-600">|</span>
+                      <span className="mx-1.5 text-[#BC986A]/40 dark:text-slate-600">|</span>
                       <span className="font-mono font-medium text-slate-600 dark:text-slate-300">
                         {todayADShort}
                       </span>
                     </span>
                   ) : (
-                    <span className="font-bold text-slate-800 dark:text-amber-300 whitespace-nowrap">
+                    <span className="font-bold text-slate-800 dark:text-[#FBEEC1] whitespace-nowrap">
                       {todayADFormatted}
-                      <span className="mx-1.5 text-stone-300 dark:text-slate-600">|</span>
-                      <span className="font-medium text-red-800 dark:text-amber-400">
+                      <span className="mx-1.5 text-[#BC986A]/40 dark:text-slate-600">|</span>
+                      <span className="font-medium text-[#8D8741] dark:text-[#659DBD]">
                         BS {todayBS.formattedEn}
                       </span>
                     </span>
@@ -854,25 +992,25 @@ export default function App() {
                 {/* Search */}
                 <button
                   onClick={() => setShowSearchModal(true)}
-                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1.5 hover:border-red-800 dark:hover:border-amber-400 transition-colors whitespace-nowrap shrink-0"
+                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1.5 hover:border-[#659DBD] dark:hover:border-[#659DBD] transition-colors whitespace-nowrap shrink-0 shadow-2xs"
                 >
-                  <Search className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                  <Search className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#659DBD]" />
                   <span>{lang === 'ne' ? 'खोज्नुहोस् (Search)' : 'Search'}</span>
                 </button>
 
                 {/* Eng / नेप Language Switcher */}
                 <button
                   onClick={() => setLang((l) => (l === 'ne' ? 'en' : 'ne'))}
-                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1.5 hover:border-red-800 dark:hover:border-amber-400 transition-colors whitespace-nowrap shrink-0"
+                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1.5 hover:border-[#659DBD] dark:hover:border-[#659DBD] transition-colors whitespace-nowrap shrink-0 shadow-2xs"
                   title="Switch Language (English / नेपाली)"
                 >
-                  <Globe className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                  <Globe className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#659DBD]" />
                   <span>
-                    <span className={lang === 'en' ? 'text-red-800 dark:text-amber-400 font-bold' : 'opacity-75'}>
+                    <span className={lang === 'en' ? 'text-[#659DBD] font-bold' : 'opacity-75'}>
                       Eng
                     </span>
-                    <span className="mx-1 text-slate-400">/</span>
-                    <span className={lang === 'ne' ? 'text-red-800 dark:text-amber-400 font-bold' : 'opacity-75'}>
+                    <span className="mx-1 text-[#BC986A]/60">/</span>
+                    <span className={lang === 'ne' ? 'text-[#8D8741] font-bold' : 'opacity-75'}>
                       नेप
                     </span>
                   </span>
@@ -881,19 +1019,19 @@ export default function App() {
                 {/* सूचना (Notifications) */}
                 <button
                   onClick={() => setShowNotificationsModal(true)}
-                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium hover:border-red-800 dark:hover:border-amber-400 transition-colors whitespace-nowrap shrink-0"
+                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium hover:border-[#659DBD] transition-colors whitespace-nowrap shrink-0 shadow-2xs"
                   title="Notifications"
                 >
-                  <Bell className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                  <Bell className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#659DBD]" />
                   <span>{lang === 'ne' ? 'सूचना' : 'Alerts'}</span>
                 </button>
 
                 {/* खाता (Account) */}
                 <button
                   onClick={() => setShowAccountModal(true)}
-                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium hover:border-red-800 dark:hover:border-amber-400 transition-colors whitespace-nowrap shrink-0"
+                  className="h-7 px-3 rounded-lg bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium hover:border-[#659DBD] transition-colors whitespace-nowrap shrink-0 shadow-2xs"
                 >
-                  <User className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                  <User className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#659DBD]" />
                   <span>
                     {userSession
                       ? userSession.fullName.split(' ')[0]
@@ -903,14 +1041,28 @@ export default function App() {
                   </span>
                 </button>
 
+                {/* Admin CMS Access Button */}
+                <button
+                  onClick={() => setActiveSection('admin')}
+                  className={`h-7 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${
+                    activeSection === 'admin'
+                      ? 'bg-[#8D8741] text-white border-[#746F33]'
+                      : 'bg-white dark:bg-slate-900 border-[#BC986A]/30 dark:border-slate-700 text-[#8D8741] dark:text-[#DAAD86] hover:border-[#8D8741]'
+                  }`}
+                  title="Admin Dashboard (CMS)"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>{lang === 'ne' ? 'एडमिन' : 'Admin'}</span>
+                </button>
+
                 {/* Subtle Dark Mode Toggle */}
                 <button
                   onClick={() => setDarkMode((d) => !d)}
-                  className="h-7 w-7 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:border-red-800 dark:hover:border-amber-400 transition-colors shrink-0"
+                  className="h-7 w-7 rounded-lg bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:border-[#659DBD] transition-colors shrink-0 shadow-2xs"
                   aria-label="Toggle Dark Mode"
                   title="Dark / Light Mode"
                 >
-                  {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
+                  {darkMode ? <Sun className="w-3.5 h-3.5 text-[#FBEEC1]" /> : <Moon className="w-3.5 h-3.5 text-[#8D8741]" />}
                 </button>
 
                 {/* Optional PWA Install Pill */}
@@ -923,7 +1075,7 @@ export default function App() {
                         setShowIOSInstallModal(true);
                       }
                     }}
-                    className="h-7 px-2.5 rounded-lg bg-blue-900 text-white font-semibold flex items-center gap-1 hover:bg-blue-800 whitespace-nowrap shrink-0"
+                    className="h-7 px-2.5 rounded-lg bg-[#659DBD] hover:bg-[#5289A8] text-white font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 shadow-2xs"
                   >
                     <Download className="w-3 h-3" />
                     <span>{lang === 'ne' ? 'एप इन्स्टल' : 'Install App'}</span>
@@ -935,26 +1087,21 @@ export default function App() {
 
           {/* Row 2 (Main Desktop Navbar): Logo, Navigation Links, Primary CTA (आजको बचन) */}
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 lg:gap-6 px-4 sm:px-6 h-16">
-            {/* Brand Logo + Wordmark */}
+            {/* Brand Logo Only */}
             <a
               href="#home"
               onClick={(e) => {
                 e.preventDefault();
                 setActiveSection('home');
               }}
-              className="flex items-center gap-2.5 text-lg lg:text-xl font-bold tracking-tight text-red-900 dark:text-amber-400 whitespace-nowrap shrink-0"
+              className="flex items-center shrink-0 hover:opacity-90 transition-opacity"
+              title={lang === 'ne' ? 'गृहपृष्ठ (Home)' : 'Home'}
             >
               <img
                 src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
                 alt="बाइबल सन्देश · Bible Sandesh Logo"
                 className="h-12 w-auto object-contain shrink-0 drop-shadow-2xs"
               />
-              <div className="leading-tight hidden xl:block">
-                <span className="block">सुसमाचार · बाइबल सन्देश</span>
-                <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 tracking-normal">
-                  Bible Sandesh • Christian Platform
-                </span>
-              </div>
             </a>
 
             {/* Navigation Links with Icons & Names (Home, Bible, Bhajan, Prayer, News, Church) */}
@@ -978,8 +1125,8 @@ export default function App() {
                     onClick={() => setActiveSection(item.id as PrimarySection)}
                     className={`px-3 lg:px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                       isActive
-                        ? 'bg-red-800 text-white dark:bg-amber-400 dark:text-slate-950 font-bold shadow-xs'
-                        : 'hover:text-red-800 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800/70'
+                        ? 'bg-[#659DBD] text-white font-bold shadow-xs'
+                        : 'hover:text-[#659DBD] dark:hover:text-[#FBEEC1] hover:bg-[#FBEEC1]/50 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     <IconComp className="w-4 h-4 shrink-0" />
@@ -993,13 +1140,13 @@ export default function App() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setActiveSection('quiz')}
-                className={`px-3.5 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 border ${
+                className={`px-3.5 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 border shadow-2xs ${
                   activeSection === 'quiz'
-                    ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs'
-                    : 'bg-stone-100 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-red-800 dark:hover:border-amber-400'
+                    ? 'bg-[#8D8741] text-white border-[#746F33] shadow-xs'
+                    : 'bg-white dark:bg-slate-800 border-[#BC986A]/30 dark:border-slate-700 text-[#8D8741] dark:text-[#FBEEC1] hover:bg-[#FAF6EC] dark:hover:bg-slate-800'
                 }`}
               >
-                <Trophy className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
+                <Trophy className="w-3.5 h-3.5 shrink-0" />
                 <span>{lang === 'ne' ? 'बाइबल क्विज' : 'Bible Quiz'}</span>
               </button>
 
@@ -1007,11 +1154,11 @@ export default function App() {
                 onClick={() => setActiveSection('daily_word')}
                 className={`px-4 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 shadow-xs ${
                   activeSection === 'daily_word'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-red-800/30'
-                    : 'text-white bg-red-800 hover:bg-red-900'
+                    ? 'bg-[#8D8741] text-white ring-2 ring-[#BC986A]/50'
+                    : 'text-white bg-[#659DBD] hover:bg-[#5289A8]'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                <Sparkles className="w-3.5 h-3.5 text-[#FBEEC1] shrink-0" />
                 <span>{lang === 'ne' ? 'आजको बचन' : 'Today’s Word'}</span>
               </button>
             </div>
@@ -1024,82 +1171,39 @@ export default function App() {
             Line 2: Polished Date Badge on left | Eng/Nep + Sign In on right
            ----------------------------------------------------------------- */}
         <div className="md:hidden">
-          {/* Mobile Line 1: Logo, Search, Notes, Three-Line Menu Icon */}
-          <div className="px-4 h-14 flex items-center justify-between gap-2 border-b border-stone-200/80 dark:border-slate-800/80">
+          {/* Mobile Single Clean Navbar: Logo on left | Search & Menu Drawer on right */}
+          <div className="px-4 h-14 flex items-center justify-between gap-2 border-b border-[#BC986A]/20 dark:border-slate-800 bg-[#FAF6EC] dark:bg-slate-900">
             <a
               href="#home"
               onClick={(e) => {
                 e.preventDefault();
                 setActiveSection('home');
               }}
-              className="flex items-center gap-2 text-base font-bold tracking-tight text-red-900 dark:text-amber-400 whitespace-nowrap shrink-0"
+              className="flex items-center shrink-0 hover:opacity-90 transition-opacity"
+              title={lang === 'ne' ? 'गृहपृष्ठ (Home)' : 'Home'}
             >
               <img
                 src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
                 alt="बाइबल सन्देश · Bible Sandesh Logo"
                 className="h-10 w-auto object-contain shrink-0"
               />
-              <span className="text-sm sm:text-base">बाइबल सन्देश · सुसमाचार</span>
             </a>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setActiveSection('notes')}
-                className="h-9 px-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1"
-                title="Notes & Reminders"
-              >
-                <StickyNote className="w-4 h-4 text-red-800 dark:text-amber-400" />
-                <span>{lang === 'ne' ? 'नोट' : 'Note'}</span>
-              </button>
-
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSearchModal(true)}
-                className="h-9 px-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1"
+                className="h-9 w-9 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 dark:border-slate-700 text-[#8D8741] dark:text-[#659DBD] flex items-center justify-center hover:bg-[#FBEEC1]/50 transition-colors shadow-2xs"
                 aria-label="Search"
               >
-                <Search className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                <Search className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setShowMobileMenuDrawer(true)}
-                className="h-9 w-9 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center"
+                className="h-9 w-9 rounded-xl bg-[#659DBD] hover:bg-[#5289A8] text-white flex items-center justify-center shadow-xs transition-colors"
                 aria-label="Open Menu"
               >
                 <Menu className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Mobile Line 2: Clean Single-Line Nep/Eng Date Badge, Eng/Nep, Sign In */}
-          <div className="px-4 py-2 bg-stone-100/90 dark:bg-slate-950/90 flex items-center justify-between gap-2 text-xs">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-amber-500/30 text-[11px] font-bold text-red-900 dark:text-amber-300 whitespace-nowrap truncate">
-              <Calendar className="w-3 h-3 text-red-800 dark:text-amber-400 shrink-0" />
-              <span className="truncate">
-                {lang === 'ne' ? `वि.सं. ${todayBS.formattedNe}` : todayADFormatted}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => setLang((l) => (l === 'ne' ? 'en' : 'ne'))}
-                className="h-7 px-2.5 rounded-lg bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1 whitespace-nowrap"
-              >
-                <Globe className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
-                <span>Eng / नेप</span>
-              </button>
-
-              <button
-                onClick={() => setShowAccountModal(true)}
-                className="h-7 px-2.5 rounded-lg bg-red-800 text-white font-semibold flex items-center gap-1 whitespace-nowrap"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>
-                  {userSession
-                    ? userSession.fullName.split(' ')[0]
-                    : lang === 'ne'
-                    ? 'लगइन'
-                    : 'Sign In'}
-                </span>
               </button>
             </div>
           </div>
@@ -1109,18 +1213,18 @@ export default function App() {
       {/* Mobile Three-Line Hamburger Navigation Drawer */}
       {showMobileMenuDrawer && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end md:hidden">
-          <div className="w-80 max-w-[85vw] bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-stone-200 dark:border-slate-800 flex flex-col justify-between overflow-y-auto p-5">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
+          <div className="w-80 max-w-[85vw] bg-[#FAF6EC] dark:bg-slate-900 h-full shadow-2xl border-l border-[#BC986A]/25 dark:border-slate-800 flex flex-col justify-between overflow-y-auto p-5">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#BC986A]/20 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
                   <img
                     src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
-                    alt="बाइबल सन्देश · Bible Sandesh Logo"
-                    className="h-10 w-auto object-contain shrink-0"
+                    alt="बाइबल सन्देश"
+                    className="h-10 w-auto object-contain shrink-0 drop-shadow-2xs"
                   />
                   <div>
-                    <p className="text-sm font-bold text-red-900 dark:text-amber-400">बाइबल सन्देश · सुसमाचार</p>
-                    <p className="text-[11px] text-slate-500">{todayBS.formattedNe}</p>
+                    <p className="text-xs font-bold text-[#8D8741] dark:text-[#FBEEC1]">biblesandes.com</p>
+                    <p className="text-[11px] text-slate-500 font-mono">वि.सं. {todayBS.formattedNe}</p>
                   </div>
                 </div>
                 <button
@@ -1130,6 +1234,57 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Mobile Drawer Quick Action Row: Eng/नेप Switcher + Login/Account */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => setLang((l) => (l === 'ne' ? 'en' : 'ne'))}
+                  className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <Globe className="w-3.5 h-3.5 text-[#8D8741]" />
+                  <span>{lang === 'ne' ? 'English (Eng)' : 'नेपाली (नेप)'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMobileMenuDrawer(false);
+                    setShowAccountModal(true);
+                  }}
+                  className="h-9 px-3 rounded-xl bg-[#659DBD] hover:bg-[#5289A8] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>
+                    {userSession
+                      ? userSession.fullName.split(' ')[0]
+                      : lang === 'ne'
+                      ? 'लगइन'
+                      : 'Sign In'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Google Drive / Picker Launch in Drawer */}
+              <button
+                onClick={() => {
+                  setShowMobileMenuDrawer(false);
+                  setShowGooglePickerModal(true);
+                }}
+                className="w-full h-9 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>Google Drive / Picker खोल्नुहोस्</span>
+              </button>
+
+              {/* Admin Dashboard CMS Quick Launcher */}
+              <button
+                onClick={() => {
+                  setShowMobileMenuDrawer(false);
+                  setActiveSection('admin');
+                }}
+                className="w-full h-9 px-3 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <Shield className="w-3.5 h-3.5 text-[#FBEEC1]" />
+                <span>{lang === 'ne' ? '🔐 एडमिन ड्यासबोर्ड (CMS)' : '🔐 Admin CMS Dashboard'}</span>
+              </button>
 
               <div className="space-y-1 text-xs font-semibold">
                 {[
@@ -1150,7 +1305,11 @@ export default function App() {
                   { id: 'rates', ne: 'सुनचाँदी दर (Gold & Silver Rates)', en: 'Gold & Silver Rates', icon: Coins },
                   { id: 'gallery', ne: 'फोटो ग्यालरी (Photo Gallery)', en: 'Photo Gallery', icon: ImageIcon },
                   { id: 'converter', ne: 'मिति परिवर्तन (Date Converter)', en: 'BS ↔ AD Date Converter', icon: ArrowLeftRight },
-                  { id: 'admin', ne: 'एडमिन ड्यासबोर्ड (Admin CMS)', en: 'Multi-Admin CMS', icon: Shield },
+                  { id: 'privacy', ne: 'गोपनीयता नीति (Privacy Policy)', en: 'Privacy Policy', icon: Lock },
+                  { id: 'community', ne: 'समुदाय निर्देशिका (Community)', en: 'Community Guidelines', icon: Users },
+                  { id: 'terms', ne: 'सेवाका सर्तहरू (Terms & Conditions)', en: 'Terms & Conditions', icon: FileText },
+                  { id: 'about', ne: 'हाम्रो बारेमा (About Us)', en: 'About Us', icon: Info },
+                  { id: 'delete-account', ne: 'खाता मेटाउने (Delete Account)', en: 'Delete Account', icon: Trash2 },
                 ].map((item) => {
                   const IconComp = item.icon;
                   return (
@@ -1162,8 +1321,8 @@ export default function App() {
                       }}
                       className={`w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-left transition-colors ${
                         activeSection === item.id
-                          ? 'bg-red-800 text-white'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800'
+                          ? 'bg-[#659DBD] text-white font-bold shadow-xs'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-[#FBEEC1]/50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <IconComp className="w-4 h-4 shrink-0" />
@@ -1226,53 +1385,53 @@ export default function App() {
           <div className="space-y-10">
             {/* 1. Christian Hero Banner & 2. Daily Bible Verse Split */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              {/* Left 7 Columns: Real Nepal Himalayan Hero Banner */}
-              <div className="lg:col-span-7 relative rounded-3xl overflow-hidden bg-slate-900 min-h-[340px] flex flex-col justify-end p-6 sm:p-8 text-white">
+              {/* Left 7 Columns: Serene Himalayan Sky-Blue Hero Banner (Inspired by Image 3) */}
+              <div className="lg:col-span-7 relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#659DBD] via-[#568FA7] to-[#457991] min-h-[340px] flex flex-col justify-end p-6 sm:p-8 text-white shadow-md border border-[#659DBD]/30">
                 <img
                   src="/assets/aistudio/image_fed91b50.png"
-                  alt="बाइबल सन्देश (Bible Sandes) — Blooming Rhododendron & Himalayas of Nepal"
+                  alt="बाइबल सन्देश (Bible Sandes)"
                   referrerPolicy="no-referrer"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/15" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#365E73]/95 via-[#659DBD]/50 to-transparent" />
 
                 <div className="relative z-10 space-y-3 max-w-2xl">
-                  <p className="text-xs font-semibold tracking-wide text-amber-300">
-                    biblesandes.com • बाइबल सन्देश • सुसमाचार बाँडौँ • प्रेममा सेवा गरौँ
-                  </p>
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FBEEC1]/20 border border-[#FBEEC1]/30 text-xs font-semibold text-[#FBEEC1] backdrop-blur-xs">
+                    <span>biblesandes.com • बाइबल सन्देश • प्रेममा सेवा गरौँ</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white font-editorial">
                     {lang === 'ne'
-                      ? 'बाइबल सन्देश (सुसमाचार) – नेपाली इसाई संजाल तथा बाइबल मञ्च'
-                      : 'Bible Sandes (Susamachar) – Nepali Christian Community & Scripture Platform'}
+                      ? 'बाइबल सन्देश – नेपाली इसाई संजाल तथा डिजिटल मञ्च'
+                      : 'Bible Sandes – Nepali Christian Community & Scripture Platform'}
                   </h1>
-                  <p className="text-sm text-stone-200 leading-relaxed">
+                  <p className="text-sm text-white/90 leading-relaxed font-sans">
                     {lang === 'ne'
                       ? 'पवित्र बाइबल (नेपाली, हिन्दी, अंग्रेजी), भजन संग्रह, आजको बचन, बाइबल क्विज (समयसहित), नोट र रिमाइन्डर, पोडकास्ट, जीवन र स्वास्थ्य टिप्स तथा एफ.एम. रेडियो।'
-                      : 'Share the Gospel • Grow in Faith • Serve with Love — Access the Multilingual Holy Bible, Hymns, Timed Bible Quiz, Notes & Reminders, Podcasts, Health Tips, and Live FM Radio.'}
+                      : 'Share the Gospel • Grow in Faith • Serve with Love — Multilingual Holy Bible, Hymns, Timed Bible Quiz, Notes & Reminders, Podcasts, and Live FM Radio.'}
                   </p>
 
                   <div className="pt-2 flex flex-wrap items-center gap-2.5">
                     <button
                       onClick={() => setActiveSection('bible')}
-                      className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                      className="h-11 px-5 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-xs whitespace-nowrap shrink-0"
                     >
                       <BookOpen className="w-4 h-4" />
                       <span>{lang === 'ne' ? 'पवित्र बाइबल पढ्नुहोस्' : 'Read Holy Bible'}</span>
                     </button>
                     <button
                       onClick={() => setActiveSection('quiz')}
-                      className="h-11 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                      className="h-11 px-5 rounded-xl bg-[#FBEEC1] hover:bg-[#FAF3DC] text-slate-900 text-xs font-bold flex items-center gap-2 transition-all shadow-xs whitespace-nowrap shrink-0"
                     >
-                      <Trophy className="w-4 h-4" />
+                      <Trophy className="w-4 h-4 text-[#8D8741]" />
                       <span>
                         {lang === 'ne' ? 'बाइबल क्विज (Timed Quiz)' : 'Play Bible Quiz'}
                       </span>
                     </button>
                     <button
                       onClick={() => setActiveSection('notes')}
-                      className="h-11 px-4 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                      className="h-11 px-4 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-white border border-white/30 text-xs font-semibold flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
                     >
-                      <StickyNote className="w-4 h-4 text-amber-300" />
+                      <StickyNote className="w-4 h-4 text-[#FBEEC1]" />
                       <span>
                         {lang === 'ne' ? 'नोट र रिमाइन्डर' : 'Notes & Reminders'}
                       </span>
@@ -1282,10 +1441,10 @@ export default function App() {
               </div>
 
               {/* Right 5 Columns: Daily Bible Verse Card */}
-              <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-5">
+              <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-[#BC986A]/30 dark:border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-5 shadow-xs">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-bold text-red-800 dark:text-amber-400">
+                    <span className="font-bold text-[#8D8741] dark:text-[#659DBD]">
                       {lang === 'ne' ? 'आजको बाइबल पद (Daily Verse)' : 'Daily Scripture Verse'}
                     </span>
                     <span className="font-mono tabular-nums">{todayBS.formattedNe} · Oct 31, 2026</span>
@@ -1295,37 +1454,37 @@ export default function App() {
                     “{dailyVerse.textNe}”
                   </blockquote>
 
-                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
                     “{dailyVerse.textEn}”
                   </p>
 
-                  <p className="text-xs font-mono tabular-nums font-bold text-red-800 dark:text-amber-400">
+                  <p className="text-xs font-mono tabular-nums font-bold text-[#BC986A]">
                     — {dailyVerse.bookNameNe} {toNepaliDigits(dailyVerse.chapter)}:{toNepaliDigits(dailyVerse.verse)} ({dailyVerse.bookNameEn} {dailyVerse.chapter}:{dailyVerse.verse})
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div className="pt-4 border-t border-[#BC986A]/20 dark:border-slate-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         navigator.clipboard?.writeText(`"${dailyVerse.textNe}" — ${dailyVerse.bookNameNe} ३:१६`);
                         notify(lang === 'ne' ? 'आजको बाइबल पद कपी गरियो!' : 'Daily verse copied!');
                       }}
-                      className="h-9 px-3 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:bg-stone-100 dark:hover:bg-slate-800"
+                      className="h-9 px-3 rounded-xl border border-[#BC986A]/30 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:bg-[#FAF6EC] dark:hover:bg-slate-800 transition-colors"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-3.5 h-3.5 text-[#8D8741]" />
                       <span>{lang === 'ne' ? 'कपी' : 'Copy'}</span>
                     </button>
                     <button
                       onClick={() => handleToggleBookmark(dailyVerse.id)}
-                      className="h-9 px-3 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:bg-stone-100 dark:hover:bg-slate-800"
+                      className="h-9 px-3 rounded-xl border border-[#BC986A]/30 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 hover:bg-[#FAF6EC] dark:hover:bg-slate-800 transition-colors"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
+                      <Share2 className="w-3.5 h-3.5 text-[#8D8741]" />
                       <span>{lang === 'ne' ? 'बुकमार्क' : 'Save'}</span>
                     </button>
                     <button
                       onClick={() => setShareHomeVerse(dailyVerse)}
-                      className="h-9 px-3 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 hover:bg-red-800 hover:text-white dark:hover:bg-amber-500 dark:hover:text-slate-950 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                      className="h-9 px-3 rounded-xl bg-[#659DBD]/15 text-[#659DBD] hover:bg-[#659DBD] hover:text-white dark:hover:bg-[#659DBD] dark:hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
                     >
                       <ImageIcon className="w-3.5 h-3.5" />
                       <span>{lang === 'ne' ? 'तस्बिर सेयर' : 'Share as Image'}</span>
@@ -1334,7 +1493,7 @@ export default function App() {
 
                   <button
                     onClick={() => setActiveSection('bible')}
-                    className="text-xs font-bold text-red-800 dark:text-amber-400 hover:underline whitespace-nowrap shrink-0"
+                    className="text-xs font-bold text-[#659DBD] dark:text-[#FBEEC1] hover:underline whitespace-nowrap shrink-0"
                   >
                     {lang === 'ne' ? 'पूरै अध्याय पढ्नुहोस् →' : 'Read Full Chapter →'}
                   </button>
@@ -1401,18 +1560,18 @@ export default function App() {
                   <button
                     key={card.id}
                     onClick={() => setActiveSection(card.id)}
-                    className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 hover:border-red-800 dark:hover:border-amber-400 rounded-2xl p-5 text-left transition-all flex flex-col justify-between gap-3 group shadow-2xs"
+                    className="bg-white dark:bg-slate-900 border border-[#BC986A]/25 dark:border-slate-800 hover:border-[#659DBD] dark:hover:border-[#659DBD] rounded-2xl p-5 text-left transition-all flex flex-col justify-between gap-3 group shadow-2xs hover:shadow-xs"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="w-10 h-10 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <span className="w-10 h-10 rounded-xl bg-[#659DBD]/15 text-[#659DBD] flex items-center justify-center group-hover:scale-105 transition-transform">
                         <CardIcon className="w-5 h-5" />
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-stone-100 dark:bg-slate-800 text-[10px] font-bold text-red-800 dark:text-amber-400">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#FAF6EC] dark:bg-slate-800 text-[10px] font-bold text-[#8D8741] dark:text-[#FBEEC1]">
                         {lang === 'ne' ? card.badgeNe : card.badgeEn}
                       </span>
                     </div>
                     <div>
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-red-800 dark:group-hover:text-amber-400 transition-colors">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-[#659DBD] dark:group-hover:text-[#659DBD] transition-colors">
                         {lang === 'ne' ? card.titleNe : card.titleEn}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
@@ -1424,186 +1583,14 @@ export default function App() {
               })}
             </section>
 
-            {/* ===============================================================
-                FEATURED VIDEOS & SHORT VIDEOS ON HOME PAGE
-                (video ,short video ,home page मा देखियोस)
-               =============================================================== */}
-            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200 dark:border-slate-800">
-                <div>
-                  <p className="text-xs font-bold text-red-800 dark:text-amber-400 flex items-center gap-1.5">
-                    <Video className="w-4 h-4" />
-                    <span>
-                      {lang === 'ne'
-                        ? 'ख्रीष्टिय भिडियो र शर्ट भिडियो (Videos & YouTube Shorts)'
-                        : 'Christian Videos & YouTube Shorts'}
-                    </span>
-                  </p>
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5">
-                    {lang === 'ne'
-                      ? 'सुसमाचार भिडियो, आराधना र १ मिनेट बाइबल शर्ट्स (Videos & Shorts)'
-                      : 'Featured Gospel Videos, Worship & Vertical Bible Shorts'}
-                  </h2>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => setShowAddHomeVideoForm((prev) => !prev)}
-                    className="h-9 px-3.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>
-                      {lang === 'ne' ? '+ भिडियो / Short थप्नुहोस्' : '+ Add Video / Short'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setActiveSection('news')}
-                    className="h-9 px-3.5 rounded-xl border border-stone-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800"
-                  >
-                    {lang === 'ne' ? 'सबै मिडिया फिड →' : 'Full Media Feed →'}
-                  </button>
-                </div>
-              </div>
-
-              {showAddHomeVideoForm && (
-                <form
-                  onSubmit={handleAddHomeVideo}
-                  className="p-4 rounded-2xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
-                >
-                  <div className="sm:col-span-4">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      {lang === 'ne' ? 'भिडियो शीर्षक (Video Title)' : 'Video Title'}
-                    </label>
-                    <input
-                      type="text"
-                      value={newVideoTitle}
-                      onChange={(e) => setNewVideoTitle(e.target.value)}
-                      placeholder={lang === 'ne' ? 'उदा: येशूको क्रूसको प्रेम...' : 'e.g. Gospel Message...'}
-                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs"
-                    />
-                  </div>
-                  <div className="sm:col-span-4">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      {lang === 'ne' ? 'YouTube Video वा Short URL' : 'YouTube Video or Short URL'}
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={newVideoUrl}
-                      onChange={(e) => setNewVideoUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=... or /shorts/..."
-                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      {lang === 'ne' ? 'प्रकार (Type)' : 'Format'}
-                    </label>
-                    <select
-                      value={newVideoType}
-                      onChange={(e) => setNewVideoType(e.target.value as 'video' | 'short')}
-                      className="w-full h-10 px-3 rounded-xl bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-xs font-bold"
-                    >
-                      <option value="video">YouTube Video (16:9)</option>
-                      <option value="short">Short Video (9:16)</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <button
-                      type="submit"
-                      className="w-full h-10 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold"
-                    >
-                      {lang === 'ne' ? 'पोस्ट गर्नुहोस्' : 'Publish'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Split: Landscape Videos (Left 7 Cols) + Vertical Short Videos (Right 5 Cols) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* Landscape YouTube Videos */}
-                <div className="lg:col-span-7 space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Video className="w-4 h-4 text-red-800 dark:text-amber-400" />
-                    <span>{lang === 'ne' ? 'प्रमुख ख्रीष्टिय भिडियोहरू (Full Videos)' : 'Featured Christian Videos'}</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {homeVideos
-                      .filter((v) => v.type === 'video')
-                      .slice(0, 4)
-                      .map((vid) => (
-                        <div
-                          key={vid.id}
-                          className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 flex flex-col justify-between"
-                        >
-                          <div className="aspect-video w-full bg-slate-950">
-                            <iframe
-                              src={vid.youtubeEmbedUrl}
-                              title={vid.titleEn}
-                              className="w-full h-full"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                          <div className="p-3.5 space-y-1">
-                            <span className="text-[10px] font-bold text-red-800 dark:text-amber-400">
-                              {vid.speakerNe}
-                            </span>
-                            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
-                              {lang === 'ne' ? vid.titleNe : vid.titleEn}
-                            </h3>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Vertical Short Videos (YouTube Shorts 9:16) */}
-                <div className="lg:col-span-5 space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Film className="w-4 h-4 text-red-800 dark:text-amber-400" />
-                    <span>{lang === 'ne' ? 'छोटो बाइबल भिडियो (Short Videos / Shorts)' : 'Short Videos (YouTube Shorts)'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3.5">
-                    {homeVideos
-                      .filter((v) => v.type === 'short')
-                      .slice(0, 2)
-                      .map((sh) => (
-                        <div
-                          key={sh.id}
-                          className="rounded-2xl overflow-hidden border border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 flex flex-col justify-between"
-                        >
-                          <div className="aspect-[9/16] max-h-[290px] w-full bg-slate-950">
-                            <iframe
-                              src={sh.youtubeEmbedUrl}
-                              title={sh.titleEn}
-                              className="w-full h-full"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                          <div className="p-3 space-y-1">
-                            <span className="px-2 py-0.5 rounded-md bg-red-800 text-white text-[10px] font-bold inline-block">
-                              SHORT
-                            </span>
-                            <h3 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2">
-                              {lang === 'ne' ? sh.titleNe : sh.titleEn}
-                            </h3>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            </section>
 
             {/* Christian News Portal Highlights + Live FM Radio (with YouTube Music Player) & Gold/Silver Snapshot */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left 7 Columns: Christian News (Empty by default until posted later per user instruction) */}
-              <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
-                <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
+              <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-[#BC986A]/25 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xs">
+                <div className="flex items-center justify-between pb-3 border-b border-[#BC986A]/20 dark:border-slate-800">
                   <div>
-                    <p className="text-xs font-semibold text-red-800 dark:text-amber-400">
+                    <p className="text-xs font-semibold text-[#8D8741] dark:text-[#659DBD]">
                       {lang === 'ne' ? 'नेपाल तथा विश्व इसाई समाचार' : 'Christian News Portal'}
                     </p>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -1612,15 +1599,15 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => setActiveSection('news')}
-                    className="text-xs font-bold text-red-800 dark:text-amber-400 hover:underline whitespace-nowrap shrink-0"
+                    className="text-xs font-bold text-[#659DBD] hover:underline whitespace-nowrap shrink-0"
                   >
                     {lang === 'ne' ? '+ समाचार पोस्ट गर्नुहोस् →' : '+ Post News →'}
                   </button>
                 </div>
 
                 {news.length === 0 ? (
-                  <div className="py-12 px-4 text-center rounded-2xl bg-stone-50 dark:bg-slate-950 border border-dashed border-stone-200 dark:border-slate-800 space-y-3">
-                    <Newspaper className="w-8 h-8 text-slate-400 mx-auto" />
+                  <div className="py-12 px-4 text-center rounded-2xl bg-[#FAF6EC] dark:bg-slate-950 border border-dashed border-[#BC986A]/30 dark:border-slate-800 space-y-3">
+                    <Newspaper className="w-8 h-8 text-[#8D8741]/60 mx-auto" />
                     <div className="space-y-1">
                       <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
                         {lang === 'ne'
@@ -1629,13 +1616,13 @@ export default function App() {
                       </p>
                       <p className="text-xs text-slate-500 max-w-md mx-auto">
                         {lang === 'ne'
-                          ? 'तपाईंले समाचार पृष्ठ वा एडमिन पोर्टलबाट जुनसुकै बेला नयाँ नेपाली वा अंग्रेजी समाचार, लेख वा सोसल पोस्ट प्रकाशन गर्न सक्नुहुन्छ।'
+                          ? 'तपाईंले समाचार पृष्ठबाट जुनसुकै बेला नयाँ नेपाली वा अंग्रेजी समाचार, लेख वा सोसल पोस्ट प्रकाशन गर्न सक्नुहुन्छ।'
                           : 'You can publish new Nepali or English Christian news articles and social posts anytime from the News Portal.'}
                       </p>
                     </div>
                     <button
                       onClick={() => setActiveSection('news')}
-                      className="h-9 px-4 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold inline-flex items-center gap-1.5"
+                      className="h-9 px-4 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>{lang === 'ne' ? 'नयाँ समाचार / पोस्ट थप्नुहोस्' : 'Create News Post'}</span>
@@ -1643,59 +1630,132 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="divide-y divide-stone-200/75 dark:divide-slate-800">
-                    {news.slice(0, 4).map((art) => (
-                      <div
-                        key={art.id}
-                        onClick={() => setActiveSection('news')}
-                        className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row gap-4 cursor-pointer group"
-                      >
-                        <img
-                          src={art.featuredImage}
-                          alt={lang === 'ne' ? art.titleNe : art.titleEn}
-                          referrerPolicy="no-referrer"
-                          className="w-full sm:w-36 h-24 rounded-xl object-cover shrink-0 bg-slate-900"
-                        />
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                            <span className="font-semibold text-red-800 dark:text-amber-400">
-                              {lang === 'ne' ? art.categoryNameNe : art.categoryNameEn}
-                            </span>
-                            <span>·</span>
-                            <span>
-                              {art.publishedAtBs} ({art.publishedAtAd})
-                            </span>
+                    {news.slice(0, 4).map((art) => {
+                      const title = lang === 'ne' ? art.titleNe : art.titleEn;
+                      const summary = lang === 'ne' ? art.summaryNe : art.summaryEn;
+                      const baseUrl =
+                        typeof window !== 'undefined' ? window.location.origin : 'https://biblesandes.com';
+                      const shareUrl =
+                        art.sourceUrl && art.sourceUrl.startsWith('http')
+                          ? art.sourceUrl
+                          : `${baseUrl}/#news-${art.id}`;
+                      const shareText = `${title}\n${summary}\n— सुसमाचार · बाइबल सन्देश (${shareUrl})`;
+
+                      return (
+                        <div
+                          key={art.id}
+                          onClick={() => setActiveSection('news')}
+                          className="news-card py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row gap-4 cursor-pointer group"
+                        >
+                          <img
+                            src={art.featuredImage}
+                            alt={title}
+                            referrerPolicy="no-referrer"
+                            className="w-full sm:w-36 h-24 rounded-xl object-cover shrink-0 bg-slate-900"
+                          />
+                          <div className="flex-1 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <span className="font-semibold text-[#8D8741] dark:text-[#659DBD]">
+                                {lang === 'ne' ? art.categoryNameNe : art.categoryNameEn}
+                              </span>
+                              <span>·</span>
+                              <span>
+                                {art.publishedAtBs} ({art.publishedAtAd})
+                              </span>
+                            </div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#659DBD] dark:group-hover:text-[#659DBD] transition-colors leading-snug">
+                              {title}
+                            </h3>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                              {summary}
+                            </p>
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="pt-1 flex flex-wrap items-center gap-1.5 text-[11px]"
+                            >
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (typeof navigator !== 'undefined' && navigator.share) {
+                                    try {
+                                      await navigator.share({ title, text: shareText, url: shareUrl });
+                                      return;
+                                    } catch {
+                                      // fallback to copy
+                                    }
+                                  }
+                                  navigator.clipboard?.writeText(`${title}\n${shareUrl}`);
+                                  notify(
+                                    lang === 'ne'
+                                      ? 'समाचार लिंक क्लिपबोर्डमा कपी गरियो!'
+                                      : 'Article link copied to clipboard!'
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-[#8D8741]/15 hover:bg-[#8D8741] text-[#8D8741] dark:text-[#FBEEC1] hover:text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title={lang === 'ne' ? 'डिभाइसमा सेयर वा लिंक कपी गर्नुहोस्' : 'Share via Native Share or Copy Link'}
+                              >
+                                <Share2 className="w-3 h-3" />
+                                <span>{lang === 'ne' ? 'सेयर (Share)' : 'Share'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  window.open(
+                                    `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`,
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
+                                }
+                                className="px-2 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-400 hover:text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title="Share on WhatsApp"
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                                <span>WhatsApp</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  window.open(
+                                    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(title)}`,
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
+                                }
+                                className="px-2 py-1 rounded-lg bg-blue-600/15 hover:bg-[#1877F2] text-blue-700 dark:text-blue-400 hover:text-white font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title="Share on Facebook"
+                              >
+                                <Facebook className="w-3 h-3" />
+                                <span>Facebook</span>
+                              </button>
+                            </div>
                           </div>
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-red-800 dark:group-hover:text-amber-400 transition-colors leading-snug">
-                            {lang === 'ne' ? art.titleNe : art.titleEn}
-                          </h3>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
-                            {lang === 'ne' ? art.summaryNe : art.summaryEn}
-                          </p>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Right 5 Columns: Live FM Radio + YouTube Music Link Player + Daily Gold/Silver Card */}
+              {/* Right 5 Columns: Live FM Radio + YouTube Channel Link + Daily Gold/Silver Card */}
               <div className="lg:col-span-5 space-y-6">
-                {/* Live FM Radio + YouTube Worship Music Quick Player Card */}
-                <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 space-y-4">
+                {/* Live FM Radio + YouTube Channel Card */}
+                <div className="bg-slate-900 text-white rounded-2xl p-6 border border-[#BC986A]/20 space-y-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-amber-400 font-semibold">
+                      <p className="text-xs text-[#FBEEC1] font-semibold">
                         {lang === 'ne'
-                          ? 'प्रत्यक्ष एफ.एम. रेडियो र YouTube संगीत'
-                          : 'Live Christian FM & YouTube Music Player'}
+                          ? 'प्रत्यक्ष एफ.एम. रेडियो र YouTube'
+                          : 'Live Christian FM & YouTube'}
                       </p>
                       <h3 className="text-lg font-bold mt-0.5">
-                        {lang === 'ne' ? 'आत्मिक भजन र बाइबल वचन प्रसारण' : 'Real FM Stream & Worship Player'}
+                        {lang === 'ne' ? 'आत्मिक भजन र बाइबल वचन प्रसारण' : 'Real FM Stream & Worship'}
                       </h3>
                     </div>
                     <button
                       onClick={() => setActiveSection('radio')}
-                      className="text-xs font-semibold text-amber-300 hover:underline"
+                      className="text-xs font-semibold text-[#DAAD86] hover:underline"
                     >
                       {lang === 'ne' ? 'सबै स्टेशन →' : 'All Stations →'}
                     </button>
@@ -1710,7 +1770,7 @@ export default function App() {
                           className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700/80 flex items-center justify-between gap-3"
                         >
                           <div className="min-w-0">
-                            <p className="text-xs font-mono tabular-nums text-amber-300">
+                            <p className="text-xs font-mono tabular-nums text-[#FBEEC1]">
                               {st.frequency} · {lang === 'ne' ? st.locationNe : st.locationEn}
                             </p>
                             <p className="text-sm font-bold truncate">
@@ -1720,7 +1780,7 @@ export default function App() {
                           <button
                             onClick={() => handlePlayStation(st)}
                             className={`h-9 px-3.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 ${
-                              active ? 'bg-amber-400 text-slate-950' : 'bg-red-800 hover:bg-red-700 text-white'
+                              active ? 'bg-[#BC986A] text-slate-950' : 'bg-[#8D8741] hover:bg-[#787334] text-white'
                             }`}
                           >
                             {active ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -1731,61 +1791,26 @@ export default function App() {
                     })}
                   </div>
 
-                  {/* Direct YouTube Music / Worship Link Player inside Home FM Card */}
-                  <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                    <p className="text-[11px] font-semibold text-amber-300">
-                      {lang === 'ne'
-                        ? '🎵 वा YouTube बाट भजन / संगीतको लिङ्क बजाउनुहोस्:'
-                        : '🎵 Or Play Any Worship / Music Link from YouTube:'}
-                    </p>
-                    <form onSubmit={handlePlayHomeYoutubeMusic} className="flex gap-2">
-                      <input
-                        type="url"
-                        value={homeYtMusicUrl}
-                        onChange={(e) => setHomeYtMusicUrl(e.target.value)}
-                        placeholder="https://www.youtube.com/watch?v=..."
-                        className="flex-1 h-9 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder:text-slate-500"
-                      />
-                      <button
-                        type="submit"
-                        className="h-9 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1 shrink-0"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>{lang === 'ne' ? 'Play' : 'Play'}</span>
-                      </button>
-                    </form>
-
-                    {activeHomeYtEmbed && (
-                      <div className="rounded-xl overflow-hidden border border-slate-700 bg-black space-y-1">
-                        <div className="px-3 py-1.5 bg-slate-950 flex items-center justify-between text-[11px]">
-                          <span className="text-amber-300 font-bold">YouTube संगीत बज्दैछ</span>
-                          <button
-                            type="button"
-                            onClick={() => setActiveHomeYtEmbed(null)}
-                            className="text-slate-400 hover:text-white"
-                          >
-                            ✕ बन्द
-                          </button>
-                        </div>
-                        <div className="aspect-video w-full">
-                          <iframe
-                            src={activeHomeYtEmbed}
-                            title="YouTube Music Player"
-                            className="w-full h-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        </div>
-                      </div>
-                    )}
+                  {/* Official YouTube Channel Link */}
+                  <div className="pt-3 border-t border-slate-800">
+                    <a
+                      href="https://www.youtube.com/@susamacharnp"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs group"
+                    >
+                      <Youtube className="w-4 h-4 text-white group-hover:scale-110 transition-transform shrink-0" />
+                      <span>{lang === 'ne' ? 'YouTube मा भजन तथा बचन हेर्नुहोस् (@susamacharnp)' : 'Watch on YouTube (@susamacharnp)'}</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-white/80 shrink-0" />
+                    </a>
                   </div>
                 </div>
 
                 {/* Daily Gold & Silver Rates Snapshot Card */}
-                <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+                <div className="bg-white dark:bg-slate-900 border border-[#BC986A]/25 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xs">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      <p className="text-xs font-semibold text-[#8D8741] dark:text-[#659DBD]">
                         {lang === 'ne' ? 'दैनिक सुनचाँदी दर (FENEGOSIDA)' : 'Nepal Gold & Silver Rates (NPR)'}
                       </p>
                       <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -1794,14 +1819,14 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setActiveSection('rates')}
-                      className="text-xs font-bold text-red-800 dark:text-amber-400 hover:underline"
+                      className="text-xs font-bold text-[#659DBD] hover:underline"
                     >
                       {lang === 'ne' ? 'इतिहास र ग्राम दर →' : 'Full History →'}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2.5 text-center">
-                    <div className="p-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800">
+                    <div className="p-3 rounded-xl bg-[#FAF6EC] dark:bg-slate-950 border border-[#BC986A]/20 dark:border-slate-800">
                       <span className="text-[11px] text-slate-500 block">
                         {lang === 'ne' ? 'छापावाल सुन (तोला)' : 'Fine Gold / Tola'}
                       </span>
@@ -1809,7 +1834,7 @@ export default function App() {
                         रू {rates.fineGoldTola.toLocaleString('en-IN')}
                       </span>
                     </div>
-                    <div className="p-3 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200/80 dark:border-slate-800">
+                    <div className="p-3 rounded-xl bg-[#FAF6EC] dark:bg-slate-950 border border-[#BC986A]/20 dark:border-slate-800">
                       <span className="text-[11px] text-slate-500 block">
                         {lang === 'ne' ? 'तेजाबी सुन (तोला)' : 'Tejabi / Tola'}
                       </span>
@@ -1845,6 +1870,17 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setShowGooglePickerModal(true)}
+                    className="h-9 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>
+                      {lang === 'ne'
+                        ? 'Google Drive बाट तस्बिर छान्नुहोस्'
+                        : 'Pick from Google Drive'}
+                    </span>
+                  </button>
                   <button
                     onClick={() => handleOpenWallpaperWithPhoto()}
                     className="h-9 px-3.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
@@ -1983,7 +2019,7 @@ export default function App() {
                   </a>
 
                   <a
-                    href="https://www.youtube.com/@susamachar"
+                    href="https://www.youtube.com/@susamacharnp"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="h-9 px-3.5 rounded-xl bg-red-600/10 text-red-700 dark:text-red-400 border border-red-600/20 inline-flex items-center gap-1.5 hover:bg-red-600 hover:text-white transition-colors"
@@ -2332,7 +2368,6 @@ export default function App() {
           <LifeNotesPodcastsView
             lang={lang}
             initialTab={activeSection as 'notes' | 'podcasts' | 'healthtips' | 'forex'}
-            todayBsFormatted={todayBS.formattedNe}
             onNotify={notify}
           />
         )}
@@ -2356,13 +2391,13 @@ export default function App() {
         )}
 
         {/* ===================================================================
-            MULTI-ADMIN DASHBOARD & RBAC CONSOLE
+            ADMIN DASHBOARD & CMS PORTAL (Content Updates & Management)
            =================================================================== */}
         {activeSection === 'admin' && (
           <AdminDashboardView
             lang={lang}
             currentAdmin={currentAdmin}
-            onSelectAdminRole={setCurrentAdmin}
+            onSelectAdminRole={(role) => setCurrentAdmin(role)}
             news={news}
             onCreateNews={handleCreateNews}
             onDeleteNews={handleDeleteNews}
@@ -2374,8 +2409,33 @@ export default function App() {
             onAddRadioStation={handleAddRadioStation}
             auditLogs={auditLogs}
             onNotify={notify}
+            onExitAdmin={() => setActiveSection('home')}
           />
         )}
+
+        {/* ===================================================================
+            PRIVACY POLICY, TERMS & CONDITIONS, AND ABOUT US (PAGES)
+           =================================================================== */}
+        {(activeSection === 'privacy' ||
+          activeSection === 'terms' ||
+          activeSection === 'about' ||
+          activeSection === 'delete-account' ||
+          activeSection === 'community') && (
+          <LegalAndAboutView
+            lang={lang}
+            initialTab={activeSection as LegalTabType}
+            onNavigateTab={(tab) => {
+              setActiveSection(tab as PrimarySection);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenSection={(sec) => {
+              setActiveSection(sec as PrimarySection);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNotify={notify}
+          />
+        )}
+
       </main>
 
       {/* Persistent Background FM Radio Mini-Player Bar */}
@@ -2438,7 +2498,7 @@ export default function App() {
          ===================================================================== */}
       <nav
         aria-label="Primary Bottom Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-stone-200 dark:border-slate-800 shadow-lg"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-[#BC986A]/20 dark:border-slate-800 shadow-lg"
       >
         <div className="max-w-7xl mx-auto px-2 sm:px-6 grid grid-cols-6 items-center h-16">
           {[
@@ -2457,8 +2517,8 @@ export default function App() {
                 onClick={() => setActiveSection(item.id as PrimarySection)}
                 className={`min-h-[48px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl mx-0.5 sm:mx-1.5 transition-colors ${
                   isActive
-                    ? 'text-red-800 dark:text-amber-400 bg-red-800/10 dark:bg-amber-400/15 font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-red-800 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800/60 font-medium'
+                    ? 'text-[#659DBD] dark:text-[#659DBD] bg-[#659DBD]/15 dark:bg-[#659DBD]/20 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-[#659DBD] dark:hover:text-[#659DBD] hover:bg-[#FAF6EC] dark:hover:bg-slate-800/60 font-medium'
                 }`}
               >
                 <IconComp className="w-5 h-5 shrink-0" />
@@ -2474,7 +2534,7 @@ export default function App() {
       {/* =====================================================================
           REDESIGNED FOOTER WITH SOCIAL ICONS (Facebook, WhatsApp, Instagram, YouTube, X)
          ===================================================================== */}
-      <footer className="bg-white dark:bg-slate-900 border-t border-stone-200 dark:border-slate-800 py-10 mt-12">
+      <footer className="bg-white dark:bg-slate-900 border-t border-[#BC986A]/20 dark:border-slate-800 py-10 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center gap-6">
           {/* First Line / Block: Logo + Slogan + Social Media Icons */}
           <div className="flex flex-col items-center space-y-3">
@@ -2484,14 +2544,13 @@ export default function App() {
                 e.preventDefault();
                 setActiveSection('home');
               }}
-              className="flex flex-col sm:flex-row items-center gap-3 text-xl font-bold tracking-tight text-red-900 dark:text-amber-400"
+              className="flex items-center justify-center"
             >
               <img
                 src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
-                alt="बाइबल सन्देश · Bible Sandesh Logo"
+                alt="Bible Sandesh Logo"
                 className="h-16 w-auto object-contain shrink-0 drop-shadow-xs"
               />
-              <span>बाइबल सन्देश · सुसमाचार (Bible Sandesh)</span>
             </a>
             <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 max-w-xl">
               {lang === 'ne'
@@ -2501,12 +2560,12 @@ export default function App() {
 
             {/* Bilingual Nepali (BS) & English (AD) Date Badge in Footer */}
             <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-              <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-stone-100 dark:bg-slate-800 border border-amber-500/30 text-xs">
-                <Calendar className="w-3.5 h-3.5 text-red-800 dark:text-amber-400 shrink-0" />
-                <span className="font-bold text-red-900 dark:text-amber-300">
+              <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/40 text-xs">
+                <Calendar className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#DAAD86] shrink-0" />
+                <span className="font-bold text-[#8D8741] dark:text-[#DAAD86]">
                   वि.सं. {todayBS.formattedNe}
                 </span>
-                <span className="text-stone-400 dark:text-slate-600">•</span>
+                <span className="text-[#BC986A]">•</span>
                 <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
                   {todayADFormatted}
                 </span>
@@ -2517,10 +2576,10 @@ export default function App() {
             <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5 text-xs font-semibold">
               <a
                 href="tel:9858064058"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors font-mono"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#8D8741] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors font-mono"
                 title="Phone: 9858064058"
               >
-                <Phone className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                <Phone className="w-3.5 h-3.5 text-[#8D8741]" />
                 <span>९८५८०६४०५८</span>
               </a>
 
@@ -2528,10 +2587,10 @@ export default function App() {
                 href="https://www.facebook.com/susamachar/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#1877F2] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
                 title="Facebook: facebook.com/susamachar"
               >
-                <Facebook className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
                 <span>Facebook</span>
               </a>
 
@@ -2539,7 +2598,7 @@ export default function App() {
                 href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-emerald-600 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
                 title="WhatsApp Channel"
               >
                 <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -2550,7 +2609,7 @@ export default function App() {
                 href="https://www.instagram.com/susamachar"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-pink-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-pink-600 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
                 title="Instagram"
               >
                 <Instagram className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
@@ -2558,13 +2617,13 @@ export default function App() {
               </a>
 
               <a
-                href="https://www.youtube.com/@susamachar"
+                href="https://www.youtube.com/@susamacharnp"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-600 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="YouTube"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#FF0000] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                title="YouTube: @susamacharnp"
               >
-                <Youtube className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <Youtube className="w-3.5 h-3.5 text-[#FF0000]" />
                 <span>YouTube</span>
               </a>
 
@@ -2572,7 +2631,7 @@ export default function App() {
                 href="https://x.com/susamachar"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-slate-950 hover:text-white text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
+                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-slate-950 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
                 title="X (Twitter)"
               >
                 <span className="font-mono font-black text-xs">𝕏</span>
@@ -2582,13 +2641,13 @@ export default function App() {
           </div>
 
           {/* Second Line in Footer: Nepali Unicode, Notes & Reminder, About Us, Privacy, Terms, Tools, WhatsApp Support, AI */}
-          <div className="w-full pt-5 border-t border-stone-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <div className="w-full pt-5 border-t border-[#BC986A]/20 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
             <button
               onClick={() => {
                 setActiveSection('unicode');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="px-3 py-1.5 rounded-xl bg-red-800/10 text-red-800 dark:text-amber-400 border border-red-800/20 hover:bg-red-800 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
+              className="px-3 py-1.5 rounded-xl bg-[#8D8741]/10 text-[#8D8741] dark:text-[#DAAD86] border border-[#8D8741]/30 hover:bg-[#8D8741] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
             >
               <Keyboard className="w-3.5 h-3.5" />
               <span>{lang === 'ne' ? 'नेपाली युनिकोड (Nepali Unicode)' : 'Nepali Unicode'}</span>
@@ -2599,53 +2658,93 @@ export default function App() {
                 setActiveSection('notes');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              className="px-3 py-1.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 hover:bg-[#659DBD] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
             >
-              <StickyNote className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <StickyNote className="w-3.5 h-3.5 text-[#659DBD] dark:text-[#DAAD86]" />
               <span>{lang === 'ne' ? 'नोट र रिमाइन्डर (Notes)' : 'Notes & Reminders'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
-              onClick={() => setActiveFooterModal('about')}
-              className="hover:text-red-800 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              onClick={() => {
+                setActiveSection('about');
+                window.location.hash = 'about';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
-              <Info className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <Info className="w-3.5 h-3.5 text-[#8D8741]" />
               <span>{lang === 'ne' ? 'हाम्रो बारेमा (About Us)' : 'About Us'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
-              onClick={() => setActiveFooterModal('privacy')}
-              className="hover:text-red-800 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              onClick={() => {
+                setActiveSection('privacy');
+                window.location.hash = 'privacy';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
-              <Lock className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <Lock className="w-3.5 h-3.5 text-[#8D8741]" />
               <span>{lang === 'ne' ? 'गोपनीयता नीति (Privacy)' : 'Privacy Policy'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
-              onClick={() => setActiveFooterModal('terms')}
-              className="hover:text-red-800 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              onClick={() => {
+                setActiveSection('terms');
+                window.location.hash = 'terms';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <FileText className="w-3.5 h-3.5 text-[#8D8741]" />
               <span>{lang === 'ne' ? 'सेवाका सर्तहरू (Terms & Conditions)' : 'Terms & Conditions'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
+
+            <button
+              onClick={() => {
+                setActiveSection('community');
+                window.location.hash = 'community';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-[#8D8741]" />
+              <span>{lang === 'ne' ? 'समुदाय निर्देशिका (Community Guidelines)' : 'Community Guidelines'}</span>
+            </button>
+
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
+
+            <button
+              onClick={() => {
+                setActiveSection('delete-account');
+                window.location.hash = 'delete-account';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-red-500 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer text-red-700/80 dark:text-red-400"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+              <span>{lang === 'ne' ? 'खाता मेटाउने (Delete Account)' : 'Delete Account'}</span>
+            </button>
+
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
               onClick={() => setActiveFooterModal('tools')}
-              className="hover:text-red-800 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap"
             >
-              <Wrench className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+              <Wrench className="w-3.5 h-3.5 text-[#8D8741]" />
               <span>{lang === 'ne' ? 'उपकरणहरू (Tools)' : 'Tools'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
               onClick={() => setActiveFooterModal('whatsapp')}
@@ -2655,26 +2754,33 @@ export default function App() {
               <span>{lang === 'ne' ? 'सहायता (Support · WhatsApp)' : 'Support (WhatsApp)'}</span>
             </button>
 
-            <span className="text-stone-300 dark:text-slate-700 hidden sm:inline">•</span>
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
 
             <button
               onClick={() => setActiveFooterModal('ai')}
-              className="px-3 py-1.5 rounded-xl bg-red-800 text-white hover:bg-red-900 transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-xs"
+              className="px-3.5 py-1.5 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <Sparkles className="w-3.5 h-3.5 text-[#FBEEC1]" />
               <span>{lang === 'ne' ? 'AI बाइबल सहायक (AI)' : 'AI Assistant'}</span>
+            </button>
+
+            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
+
+            <button
+              onClick={() => {
+                setActiveSection('admin');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 text-[#8D8741] dark:text-[#DAAD86] border border-[#BC986A]/40 hover:bg-[#8D8741] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
+              title="Admin CMS Dashboard"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>{lang === 'ne' ? '🔐 एडमिन ड्यासबोर्ड (CMS)' : '🔐 Admin Dashboard'}</span>
             </button>
           </div>
 
-          <div className="text-[11px] text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-center gap-3">
-            <span>© {new Date().getFullYear()} Susamachar – Christian App | सुसमाचार – इसाई संजाल (biblesandes.com)</span>
-            <span>·</span>
-            <button
-              onClick={() => setActiveSection('admin')}
-              className="hover:text-red-800 dark:hover:text-amber-400 underline underline-offset-4"
-            >
-              {lang === 'ne' ? 'एडमिन पोर्टल (Admin CMS)' : 'Admin CMS'}
-            </button>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center justify-center gap-3">
+            <span>© {new Date().getFullYear()} Bible Sandesh – Christian Platform | biblesandes.com</span>
           </div>
         </div>
       </footer>
@@ -2806,12 +2912,12 @@ export default function App() {
                     <Youtube className="w-3.5 h-3.5 text-red-600 shrink-0" />
                     <strong>YouTube:</strong>{' '}
                     <a
-                      href="https://www.youtube.com/@susamachar"
+                      href="https://www.youtube.com/@susamacharnp"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-red-700 dark:text-red-400 font-mono font-bold hover:underline"
                     >
-                      youtube.com/@susamachar
+                      youtube.com/@susamacharnp
                     </a>
                   </p>
                   <p className="flex items-center gap-2">
@@ -3314,6 +3420,32 @@ export default function App() {
                     Forgot password?
                   </button>
                 </div>
+
+                {/* Direct Admin CMS Quick Access Card */}
+                <div className="mt-3 pt-3 border-t border-stone-200 dark:border-slate-800 bg-[#FAF6EC] dark:bg-slate-950 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8D8741] dark:text-[#FBEEC1] flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-[#8D8741]" />
+                      <span>{lang === 'ne' ? 'एडमिन ड्यासबोर्ड (CMS)' : 'Admin CMS Portal'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccountModal(false);
+                        setActiveSection('admin');
+                        notify(lang === 'ne' ? 'एडमिन ड्यासबोर्डमा स्वागत छ!' : 'Welcome to Admin Dashboard!');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#8D8741] hover:bg-[#787334] text-white text-[11px] font-bold shadow-2xs cursor-pointer"
+                    >
+                      {lang === 'ne' ? 'ड्यासबोर्ड खोल्नुहोस् →' : 'Open Dashboard →'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {lang === 'ne'
+                      ? 'समाचार, सुनचाँदी दर, प्रार्थना वा भजनहरू अपडेट गर्न सिधै एडमिन ड्यासबोर्ड खोल्न सक्नुहुन्छ।'
+                      : 'Update news articles, gold/silver rates, prayers, or hymns.'}
+                  </p>
+                </div>
               </form>
             )}
           </div>
@@ -3428,6 +3560,38 @@ export default function App() {
           setWallpaperBgUrl(null);
         }}
         onNotify={notify}
+      />
+
+      {/* cPanel Deployment & Google Drive Modal */}
+      <CPanelDeployModal
+        isOpen={showDeployModal}
+        onClose={() => setShowDeployModal(false)}
+      />
+
+      {/* Google Picker Modal (Select from Google Drive) */}
+      <GooglePickerModal
+        isOpen={showGooglePickerModal}
+        onClose={() => setShowGooglePickerModal(false)}
+        lang={lang}
+        onFileSelect={(file) => {
+          if (file.mimeType?.startsWith('image/') || file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+            if (file.url) {
+              setWallpaperBgUrl(file.url);
+              setShareHomeVerse(dailyVerse);
+            }
+            notify(
+              lang === 'ne'
+                ? `Google Drive बाट तस्बिर छानियो: ${file.name}`
+                : `Picked image from Google Drive: ${file.name}`
+            );
+          } else {
+            notify(
+              lang === 'ne'
+                ? `Google Drive बाट फाइल छानियो: ${file.name}`
+                : `Selected Google Drive file: ${file.name}`
+            );
+          }
+        }}
       />
 
       {/* Non-intrusive Toast Notification */}

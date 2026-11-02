@@ -598,10 +598,10 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-[#659DBD] via-[#528cae] to-[#457991] rounded-3xl p-6 sm:p-8 text-white shadow-lg">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-amber-300 text-xs font-bold">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-[#FBEEC1] text-xs font-bold">
               <Keyboard className="w-3.5 h-3.5" />
               <span>
                 {lang === 'ne'
@@ -609,12 +609,12 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
                   : 'Nepali Unicode Converter & Virtual Keyboard • nepali-unicode'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">
+            <h1 className="text-2xl sm:text-3xl font-bold font-serif">
               {lang === 'ne'
                 ? 'नेपाली युनिकोड (Nepali Unicode) रूपान्तरण र स्मार्ट टाइपिङ'
                 : 'Nepali Unicode Transliteration, Preeti Converter & Virtual Keyboard'}
             </h1>
-            <p className="text-xs sm:text-sm text-stone-200 max-w-3xl leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#FBEEC1]/90 max-w-3xl leading-relaxed">
               {lang === 'ne'
                 ? 'रोमनाइज्ड अंग्रेजीमा टाइप गर्दा स्वतः शुद्ध नेपाली युनिकोडमा बदलिनुका साथै प्रिती (Preeti) फन्टलाई युनिकोडमा रूपान्तरण गर्ने र नेपाली किबोर्डबाट सीधै लेखेर कपी वा नोटमा सेभ गर्ने सुविधा।'
                 : 'Type phonetically in Roman English (e.g., "parmeshwar prem hunuhunchha") or paste Preeti font text to convert into standard Nepali Devanagari Unicode.'}
@@ -630,8 +630,8 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               }}
               className={`h-10 px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
                 converterMode === 'roman'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                  ? 'bg-[#FBEEC1] text-[#457991] shadow-sm'
+                  : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Type className="w-4 h-4" />
@@ -649,8 +649,8 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               }}
               className={`h-10 px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
                 converterMode === 'preeti'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                  ? 'bg-[#FBEEC1] text-[#457991] shadow-sm'
+                  : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <ArrowLeftRight className="w-4 h-4" />
@@ -666,10 +666,10 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
 
       {/* Quick Biblical & Nepali Sample Chips */}
       {converterMode === 'roman' && (
-        <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-4 space-y-2.5">
+        <div className="bg-white dark:bg-slate-900 border border-[#BC986A]/20 dark:border-slate-800 rounded-2xl p-4 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-red-800 dark:text-amber-400" />
+              <Sparkles className="w-4 h-4 text-[#8D8741] dark:text-[#DAAD86]" />
               <span>
                 {lang === 'ne'
                   ? 'उदाहरण वाक्यहरू (क्लिक गरेर परीक्षण गर्नुहोस्):'
@@ -687,7 +687,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               <button
                 key={idx}
                 onClick={() => handleSourceChange(item.roman)}
-                className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-800 hover:text-white text-xs text-slate-700 dark:text-slate-200 transition-colors text-left"
+                className="px-3 py-1.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/20 hover:bg-[#8D8741] hover:text-white text-xs text-slate-700 dark:text-slate-200 transition-colors text-left"
               >
                 <span className="font-bold">{item.unicode}</span>
                 <span className="ml-1.5 opacity-75 font-mono text-[11px]">({item.roman})</span>
@@ -700,12 +700,12 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
       {/* Dual Editor Grid: Input & Nepali Unicode Output */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Romanized or Preeti Input Box */}
-        <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs">
+        <div className="bg-white dark:bg-slate-900 border border-[#BC986A]/20 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs">
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-200 dark:border-slate-800">
               <div>
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-red-800 dark:text-amber-400" />
+                  <FileText className="w-4 h-4 text-[#8D8741] dark:text-[#DAAD86]" />
                   <span>
                     {converterMode === 'roman'
                       ? lang === 'ne'
@@ -727,7 +727,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
                   setSourceInput('');
                   setCustomOutputOverride(null);
                 }}
-                className="h-8 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-red-100 dark:hover:bg-red-950/50 text-slate-600 dark:text-slate-300 hover:text-red-700 text-xs font-semibold flex items-center gap-1.5"
+                className="h-8 px-3 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5"
               >
                 <Eraser className="w-3.5 h-3.5" />
                 <span>{lang === 'ne' ? 'खाली गर्नुहोस्' : 'Clear'}</span>
@@ -743,7 +743,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
                   ? 'यहाँ रोमनमा टाइप गर्नुहोस्... उदा: prabhu yeshu khrishtako prem...'
                   : 'प्रिती फन्टको अक्षर यहाँ पेस्ट गर्नुहोस्...'
               }
-              className="w-full p-4 rounded-xl bg-stone-50 dark:bg-slate-950 border border-stone-200 dark:border-slate-800 text-sm sm:text-base text-slate-900 dark:text-white leading-relaxed focus:outline-none focus:border-red-800 dark:focus:border-amber-400 font-mono"
+              className="w-full p-4 rounded-xl bg-[#FAF6EC]/50 dark:bg-slate-950 border border-[#BC986A]/30 dark:border-slate-800 text-sm sm:text-base text-slate-900 dark:text-white leading-relaxed focus:outline-none focus:border-[#659DBD] font-mono"
             />
           </div>
 
@@ -760,11 +760,11 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
         </div>
 
         {/* Right: Converted Nepali Unicode Output Box */}
-        <div className="bg-white dark:bg-slate-900 border-2 border-red-800/30 dark:border-amber-400/30 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs">
+        <div className="bg-white dark:bg-slate-900 border-2 border-[#659DBD]/30 dark:border-[#659DBD]/30 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-2xs">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-stone-200 dark:border-slate-800">
               <div>
-                <h2 className="text-sm font-bold text-red-900 dark:text-amber-400 flex items-center gap-2">
+                <h2 className="text-sm font-bold text-[#659DBD] dark:text-[#DAAD86] flex items-center gap-2">
                   <BookOpen className="w-4 h-4" />
                   <span>
                     {lang === 'ne'
@@ -782,7 +782,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={handleCopyUnicode}
-                  className="h-8 px-3.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                  className="h-8 px-3.5 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>
@@ -798,7 +798,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
 
                 <button
                   onClick={handleSaveNote}
-                  className="h-8 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  className="h-8 px-3 rounded-xl bg-[#DAAD86] hover:bg-[#c99a73] text-slate-900 text-xs font-bold flex items-center gap-1.5 transition-colors"
                   title="Save to Personal Notes"
                 >
                   <StickyNote className="w-3.5 h-3.5" />
@@ -807,7 +807,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
 
                 <button
                   onClick={handleDownloadTxt}
-                  className="h-8 px-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1"
+                  className="h-8 px-2.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 hover:bg-[#BC986A]/20 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1"
                   title="Download as .txt"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -821,7 +821,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               value={convertedText}
               onChange={(e) => setCustomOutputOverride(e.target.value)}
               placeholder="नेपाली युनिकोड यहाँ देखिनेछ..."
-              className="w-full p-4 rounded-xl bg-amber-50/40 dark:bg-slate-950 border border-amber-500/30 dark:border-slate-800 text-base sm:text-lg font-medium text-slate-900 dark:text-white leading-relaxed focus:outline-none focus:border-red-800"
+              className="w-full p-4 rounded-xl bg-[#FAF6EC]/40 dark:bg-slate-950 border border-[#BC986A]/30 dark:border-slate-800 text-base sm:text-lg font-medium text-slate-900 dark:text-white leading-relaxed focus:outline-none focus:border-[#659DBD]"
             />
           </div>
 
@@ -831,7 +831,7 @@ export const NepaliUnicodeView: React.FC<NepaliUnicodeViewProps> = ({
               {lang === 'ne' ? 'अक्षर (Chars):' : 'Characters:'}{' '}
               <strong>{convertedText.length}</strong>
             </span>
-            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+            <span className="text-[#8D8741] dark:text-[#DAAD86] font-semibold">
               UTF-8 Standard Devanagari Unicode
             </span>
           </div>
