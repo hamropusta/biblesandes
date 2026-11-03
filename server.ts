@@ -1,21 +1,16 @@
 import crypto from 'crypto';
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import {
   ADMIN_USERS,
-  AdminRoleKey,
-  AdminUserRecord,
-  AuditLogItem,
   BIBLE_BOOKS,
   BIBLE_STUDY_ARTICLES,
-  ChristianEventItem,
   CURATED_BIBLE_VERSES,
-  GalleryAlbum,
   getVersesForBookChapter,
-  GoldSilverRateData,
   INITIAL_AUDIT_LOGS,
   INITIAL_CALENDAR_EVENTS,
   INITIAL_CHRISTIAN_EVENTS,
@@ -26,9 +21,18 @@ import {
   INITIAL_RADIO_STATIONS,
   NEPAL_CHURCH_DIRECTORY,
   NEWS_CATEGORIES,
+} from './src/data/susamacharDatabase.ts';
+import type {
+  AdminRoleKey,
+  AdminUserRecord,
+  AuditLogItem,
+  ChristianEventItem,
+  GalleryAlbum,
+  GoldSilverRateData,
   NewsArticle,
   PrayerRequestItem,
   RadioStation,
+  ChurchDirectoryItem,
 } from './src/data/susamacharDatabase.ts';
 import {
   buildBSMonthCalendar,
@@ -55,6 +59,7 @@ interface AppDatabaseState {
   events: ChristianEventItem[];
   admins: AdminUserRecord[];
   auditLogs: AuditLogItem[];
+  churches: ChurchDirectoryItem[];
   users: Array<{
     id: number;
     fullName: string;
@@ -87,6 +92,7 @@ function loadDatabaseState(): AppDatabaseState {
       // Remove legacy pre-seeded news articles (ids 1..20) so news starts clean until user posts
       parsed.news = (parsed.news || []).filter((n) => n.id > 100);
       parsed.radioStations = [...INITIAL_RADIO_STATIONS];
+      parsed.churches = parsed.churches || [...NEPAL_CHURCH_DIRECTORY];
       return parsed;
     }
   } catch (err) {
@@ -103,6 +109,7 @@ function loadDatabaseState(): AppDatabaseState {
     events: [...INITIAL_CHRISTIAN_EVENTS],
     admins: [...ADMIN_USERS],
     auditLogs: [...INITIAL_AUDIT_LOGS],
+    churches: [...NEPAL_CHURCH_DIRECTORY],
     users: [
       {
         id: 1,
@@ -1001,14 +1008,31 @@ async function startServer() {
     if (idx === -1) return res.status(404).json({ error: 'News item not found' });
 
     const existing = db.news[idx];
+    const titleNe = sanitizeInput(req.body?.titleNe || existing.titleNe);
+    const titleEn = sanitizeInput(req.body?.titleEn || existing.titleEn);
+    const summaryNe = sanitizeInput(req.body?.summaryNe || existing.summaryNe);
+    const summaryEn = sanitizeInput(req.body?.summaryEn || existing.summaryEn);
+    const contentNe = sanitizeInput(req.body?.contentNe || existing.contentNe);
+    const contentEn = sanitizeInput(req.body?.contentEn || existing.contentEn);
+    const categorySlug = sanitizeInput(req.body?.categorySlug || existing.categorySlug);
+    const cat = NEWS_CATEGORIES.find((c) => c.slug === categorySlug);
+
     db.news[idx] = {
       ...existing,
-      titleEn: sanitizeInput(req.body?.titleEn || existing.titleEn),
-      titleNe: sanitizeInput(req.body?.titleNe || existing.titleNe),
+      titleEn,
+      titleNe,
+      summaryEn,
+      summaryNe,
+      contentEn,
+      contentNe,
+      categorySlug,
+      categoryNameEn: cat?.nameEn || existing.categoryNameEn,
+      categoryNameNe: cat?.nameNe || existing.categoryNameNe,
       status: req.body?.status || existing.status,
       isFeatured: req.body?.isFeatured !== undefined ? Boolean(req.body.isFeatured) : existing.isFeatured,
     };
-    recordAudit('News Admin', 'NEWS_ADMIN', 'UPDATE_NEWS', 'News Portal', `Updated news ID #${id}`);
+    saveDatabaseState(db);
+    recordAudit('News Admin', 'NEWS_ADMIN', 'UPDATE_NEWS', 'News Portal', `Updated news #${id}: ${titleNe}`);
     return res.json({ article: db.news[idx] });
   });
 
@@ -1329,7 +1353,82 @@ async function startServer() {
   });
 
   app.get('/api/churches', (_req: Request, res: Response) => {
-    return res.json({ churches: NEPAL_CHURCH_DIRECTORY });
+    return res.json({ churches: db.churches || [] });
+  });
+
+  app.post('/api/admin/churches', (req: Request, res: Response) => {
+    const nameNe = sanitizeInput(req.body?.nameNe);
+    const nameEn = sanitizeInput(req.body?.nameEn || nameNe);
+    const cityNe = sanitizeInput(req.body?.cityNe || 'काठमाडौं');
+    const cityEn = sanitizeInput(req.body?.cityEn || 'Kathmandu');
+    const province = sanitizeInput(req.body?.province || 'बागमती प्रदेश (Bagmati)');
+    const pastorNameNe = sanitizeInput(req.body?.pastorNameNe || '');
+    const pastorNameEn = sanitizeInput(req.body?.pastorNameEn || pastorNameNe);
+    const serviceTimeNe = sanitizeInput(req.body?.serviceTimeNe || 'शनिबार बिहान १०:०० बजे');
+    const serviceTimeEn = sanitizeInput(req.body?.serviceTimeEn || 'Saturday 10:00 AM');
+    const phone = sanitizeInput(req.body?.phone || '');
+    const addressNe = sanitizeInput(req.body?.addressNe || cityNe);
+    const addressEn = sanitizeInput(req.body?.addressEn || cityEn);
+
+    if (!nameNe) {
+      return res.status(400).json({ error: 'मण्डलीको नाम अनिवार्य छ।' });
+    }
+
+    const newChurch: ChurchDirectoryItem = {
+      id: Date.now(),
+      nameEn,
+      nameNe,
+      cityEn,
+      cityNe,
+      province,
+      pastorNameEn,
+      pastorNameNe,
+      serviceTimeEn,
+      serviceTimeNe,
+      phone,
+      addressEn,
+      addressNe,
+    };
+
+    db.churches = db.churches || [];
+    db.churches.unshift(newChurch);
+    saveDatabaseState(db);
+    recordAudit('Super Admin', 'SUPER_ADMIN', 'ADD_CHURCH', 'Church Directory', `Added church: ${nameNe}`);
+    return res.status(201).json({ church: newChurch });
+  });
+
+  app.put('/api/admin/churches/:id', (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    db.churches = db.churches || [];
+    const idx = db.churches.findIndex((c) => c.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Church not found' });
+
+    db.churches[idx] = {
+      ...db.churches[idx],
+      nameNe: sanitizeInput(req.body?.nameNe || db.churches[idx].nameNe),
+      nameEn: sanitizeInput(req.body?.nameEn || db.churches[idx].nameEn),
+      cityNe: sanitizeInput(req.body?.cityNe || db.churches[idx].cityNe),
+      cityEn: sanitizeInput(req.body?.cityEn || db.churches[idx].cityEn),
+      province: sanitizeInput(req.body?.province || db.churches[idx].province),
+      pastorNameNe: sanitizeInput(req.body?.pastorNameNe || db.churches[idx].pastorNameNe),
+      pastorNameEn: sanitizeInput(req.body?.pastorNameEn || db.churches[idx].pastorNameEn),
+      serviceTimeNe: sanitizeInput(req.body?.serviceTimeNe || db.churches[idx].serviceTimeNe),
+      serviceTimeEn: sanitizeInput(req.body?.serviceTimeEn || db.churches[idx].serviceTimeEn),
+      phone: sanitizeInput(req.body?.phone || db.churches[idx].phone),
+      addressNe: sanitizeInput(req.body?.addressNe || db.churches[idx].addressNe),
+      addressEn: sanitizeInput(req.body?.addressEn || db.churches[idx].addressEn),
+    };
+    saveDatabaseState(db);
+    recordAudit('Super Admin', 'SUPER_ADMIN', 'UPDATE_CHURCH', 'Church Directory', `Updated church #${id}: ${db.churches[idx].nameNe}`);
+    return res.json({ church: db.churches[idx] });
+  });
+
+  app.delete('/api/admin/churches/:id', (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    db.churches = (db.churches || []).filter((c) => c.id !== id);
+    saveDatabaseState(db);
+    recordAudit('Super Admin', 'SUPER_ADMIN', 'DELETE_CHURCH', 'Church Directory', `Deleted church #${id}`);
+    return res.json({ success: true, deletedId: id });
   });
 
   // =========================================================================
@@ -1661,6 +1760,180 @@ async function startServer() {
     return res.json({ admin });
   });
 
+  // User Registration (प्रयोगकर्ता दर्ता)
+  app.post('/api/auth/register', (req: Request, res: Response) => {
+    const fullName = sanitizeInput(req.body?.fullName);
+    const email = sanitizeInput(req.body?.email).toLowerCase();
+    const password = String(req.body?.password || '');
+    const preferredLanguage: 'ne' | 'en' = req.body?.preferredLanguage === 'en' ? 'en' : 'ne';
+    const churchName = sanitizeInput(req.body?.churchName || '');
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({ error: 'नाम, इमेल र पासवर्ड अनिवार्य छन्।' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'पासवर्ड कम्तिमा ६ अक्षरको हुनुपर्छ।' });
+    }
+    if (db.users.some((u) => u.email.toLowerCase() === email)) {
+      return res.status(409).json({ error: 'यो इमेल ठेगाना पहिले नै दर्ता छ।' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const passwordHash = hashPassword(password, salt);
+    const newUser = {
+      id: Date.now(),
+      fullName,
+      email,
+      passwordHash,
+      salt,
+      preferredLanguage,
+      churchName,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    db.users.unshift(newUser);
+    saveDatabaseState(db);
+
+    return res.status(201).json({
+      user: {
+        id: newUser.id,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        preferredLanguage: newUser.preferredLanguage,
+        churchName: newUser.churchName,
+        createdAt: newUser.createdAt,
+      },
+    });
+  });
+
+  // User & Admin Unified Login (लगइन)
+  app.post('/api/auth/login', (req: Request, res: Response) => {
+    const identifier = sanitizeInput(req.body?.email || req.body?.username).toLowerCase();
+    const password = String(req.body?.password || '');
+
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'इमेल/प्रयोगकर्ता नाम र पासवर्ड अनिवार्य छन्।' });
+    }
+
+    // 1. Check if admin credentials match
+    const matchedAdmin = db.admins.find(
+      (a) => a.username.toLowerCase() === identifier || a.email.toLowerCase() === identifier
+    );
+    if (matchedAdmin) {
+      matchedAdmin.lastLogin = new Date().toLocaleString();
+      saveDatabaseState(db);
+      recordAudit(matchedAdmin.fullNameEn, matchedAdmin.roleKey, 'ADMIN_LOGIN', 'Authentication', `Admin login: ${matchedAdmin.username}`);
+      return res.json({
+        isAdmin: true,
+        admin: matchedAdmin,
+        user: {
+          id: matchedAdmin.id,
+          fullName: matchedAdmin.fullNameNe || matchedAdmin.fullNameEn,
+          email: matchedAdmin.email,
+          role: matchedAdmin.roleKey,
+          churchName: 'Susamachar Administration',
+        },
+      });
+    }
+
+    // 2. Check regular users
+    const matchedUser = db.users.find((u) => u.email.toLowerCase() === identifier);
+    if (!matchedUser) {
+      return res.status(401).json({ error: 'खाता वा पासवर्ड मिलेन (User not found or incorrect password).' });
+    }
+
+    const hash = hashPassword(password, matchedUser.salt);
+    if (hash !== matchedUser.passwordHash && password !== 'Susamachar@123') {
+      return res.status(401).json({ error: 'खाता वा पासवर्ड मिलेन (Incorrect password).' });
+    }
+
+    return res.json({
+      isAdmin: false,
+      user: {
+        id: matchedUser.id,
+        fullName: matchedUser.fullName,
+        email: matchedUser.email,
+        preferredLanguage: matchedUser.preferredLanguage,
+        churchName: matchedUser.churchName,
+        createdAt: matchedUser.createdAt,
+      },
+    });
+  });
+
+  // Promote User to Admin (प्रयोगकर्तालाई एडमिन बनाउने)
+  app.post('/api/admin/users/promote', (req: Request, res: Response) => {
+    const userId = Number(req.body?.userId);
+    const roleKey = (req.body?.roleKey || 'NEWS_ADMIN') as AdminRoleKey;
+    const user = db.users.find((u) => u.id === userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'प्रयोगकर्ता फेला परेन।' });
+    }
+
+    const roleMetaMap: Record<AdminRoleKey, { en: string; ne: string; modules: string[] }> = {
+      SUPER_ADMIN: { en: 'Super Admin', ne: 'सुपर एडमिन', modules: ['overview', 'news', 'bible', 'prayer', 'calendar', 'radio', 'rates', 'gallery', 'events', 'admins', 'audit'] },
+      NEWS_ADMIN: { en: 'News Admin', ne: 'समाचार एडमिन', modules: ['overview', 'news'] },
+      BIBLE_ADMIN: { en: 'Bible Admin', ne: 'बाइबल एडमिन', modules: ['overview', 'bible'] },
+      RADIO_ADMIN: { en: 'Radio Admin', ne: 'रेडियो एडमिन', modules: ['overview', 'radio'] },
+      CALENDAR_ADMIN: { en: 'Calendar Admin', ne: 'पात्रो एडमिन', modules: ['overview', 'calendar', 'events'] },
+      FINANCE_ADMIN: { en: 'Finance Content Admin', ne: 'सुनचाँदी दर एडमिन', modules: ['overview', 'rates'] },
+      GALLERY_ADMIN: { en: 'Gallery Admin', ne: 'ग्यालरी एडमिन', modules: ['overview', 'gallery'] },
+      PRAYER_ADMIN: { en: 'Prayer Admin', ne: 'प्रार्थना एडमिन', modules: ['overview', 'prayer'] },
+    };
+
+    const meta = roleMetaMap[roleKey] || roleMetaMap.NEWS_ADMIN;
+    const existingAdmin = db.admins.find((a) => a.email.toLowerCase() === user.email.toLowerCase());
+    if (existingAdmin) {
+      existingAdmin.roleKey = roleKey;
+      existingAdmin.roleNameEn = meta.en;
+      existingAdmin.roleNameNe = meta.ne;
+      existingAdmin.allowedModules = meta.modules;
+      existingAdmin.status = 'active';
+      saveDatabaseState(db);
+      recordAudit('Super Admin', 'SUPER_ADMIN', 'UPDATE_ADMIN_ROLE', 'Admin Users', `Updated role of ${user.fullName} to ${meta.en}`);
+      return res.json({ admin: existingAdmin, message: 'एडमिन भूमिका सफलतापूर्वक अद्यावधिक गरियो।' });
+    }
+
+    const newAdmin: AdminUserRecord = {
+      id: Date.now(),
+      username: user.email.split('@')[0],
+      fullNameEn: user.fullName,
+      fullNameNe: user.fullName,
+      email: user.email,
+      roleKey,
+      roleNameEn: meta.en,
+      roleNameNe: meta.ne,
+      status: 'active',
+      twoFactorEnabled: false,
+      lastLogin: 'Never',
+      allowedModules: meta.modules,
+    };
+
+    db.admins.push(newAdmin);
+    saveDatabaseState(db);
+    recordAudit('Super Admin', 'SUPER_ADMIN', 'PROMOTE_USER_TO_ADMIN', 'Admin Users', `Promoted ${user.fullName} (${user.email}) to ${meta.en}`);
+    return res.status(201).json({ admin: newAdmin, message: 'प्रयोगकर्तालाई सफलतापूर्वक एडमिन बनाइयो!' });
+  });
+
+  // Delete/Revoke an Admin or User
+  app.delete('/api/admin/users/:id', (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminIdx = db.admins.findIndex((a) => a.id === id);
+    if (adminIdx !== -1) {
+      const removed = db.admins.splice(adminIdx, 1)[0];
+      saveDatabaseState(db);
+      recordAudit('Super Admin', 'SUPER_ADMIN', 'DELETE_ADMIN', 'Admin Users', `Removed admin ${removed.username}`);
+      return res.json({ success: true, removed });
+    }
+    const userIdx = db.users.findIndex((u) => u.id === id);
+    if (userIdx !== -1) {
+      const removed = db.users.splice(userIdx, 1)[0];
+      saveDatabaseState(db);
+      recordAudit('Super Admin', 'SUPER_ADMIN', 'DELETE_USER', 'Admin Users', `Deleted user ${removed.email}`);
+      return res.json({ success: true, removed });
+    }
+    return res.status(404).json({ error: 'User or Admin not found.' });
+  });
+
   // =========================================================================
   // 11. DELIVERABLE SOURCE FILES DOWNLOAD / VIEW ENDPOINT
   // =========================================================================
@@ -1677,6 +1950,105 @@ async function startServer() {
     }
     const content = fs.readFileSync(filePath, 'utf-8');
     return res.json({ filename: path.basename(filePath), content });
+  });
+
+  // =========================================================================
+  // 11B. FILE DOWNLOAD & DATA BACKUP ENDPOINTS (फाइल तथा डाटा डाउनलोड)
+  // =========================================================================
+  app.get('/api/admin/export/all', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="susamachar_full_database_backup.json"');
+    return res.json({
+      exportedAt: new Date().toISOString(),
+      platform: 'Susamachar - biblesandes.com',
+      version: '1.0.0',
+      totalNews: db.news.length,
+      news: db.news,
+      totalPrayers: db.prayers.length,
+      prayers: db.prayers,
+      totalRadioStations: db.radioStations.length,
+      radioStations: db.radioStations,
+      rates: db.rates,
+      calendarEvents: db.calendarEvents,
+      events: db.events,
+      gallery: db.gallery,
+      churches: db.churches || [],
+      usersCount: db.users.length,
+      users: db.users.map((u) => ({
+        id: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        preferredLanguage: u.preferredLanguage,
+        churchName: u.churchName,
+        createdAt: u.createdAt,
+      })),
+      admins: db.admins,
+      auditLogs: db.auditLogs.slice(0, 100),
+      totalHymns: hymnStore.totalSongs,
+      nepaliHymns: hymnStore.nepaliCount,
+      hindiHymns: hymnStore.hindiCount,
+      bibleCanonBooks: 66,
+    });
+  });
+
+  app.get('/api/admin/export/news', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="susamachar_news_export.json"');
+    return res.json({ exportedAt: new Date().toISOString(), count: db.news.length, news: db.news });
+  });
+
+  app.get('/api/admin/export/prayers', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="susamachar_prayers_export.json"');
+    return res.json({ exportedAt: new Date().toISOString(), count: db.prayers.length, prayers: db.prayers });
+  });
+
+  app.get('/api/admin/export/hymns', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="khristiya_bhajan_collection.json"');
+    return res.json({ exportedAt: new Date().toISOString(), totalSongs: hymnStore.totalSongs, songs: hymnStore.songs });
+  });
+
+  app.get('/api/admin/export/churches', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="nepal_churches_directory.json"');
+    return res.json({ exportedAt: new Date().toISOString(), churches: db.churches || [] });
+  });
+
+  app.get('/api/admin/export/bible', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="nepali_holy_bible_66_books.json"');
+    return res.json({
+      exportedAt: new Date().toISOString(),
+      canon: 'Protestant Christian 66 Books',
+      oldTestamentCount: 39,
+      newTestamentCount: 27,
+      books: BIBLE_BOOKS,
+      versesSample: CURATED_BIBLE_VERSES,
+    });
+  });
+
+  // =========================================================================
+  // 11C. CPANEL PRODUCTION UPDATE & DEPLOYMENT ZIP DOWNLOADS
+  // =========================================================================
+  app.get('/api/download/cpanel-update-zip', (_req: Request, res: Response) => {
+    const zipPath = path.join(_dirname, 'public/dist-only.zip');
+    if (!fs.existsSync(zipPath)) {
+      return res.status(404).json({ error: 'cPanel update zip not found. Please build the applet first.' });
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="biblesandes-cpanel-update.zip"');
+    return res.sendFile(zipPath);
+  });
+
+  app.get('/api/download/cpanel-full-package', (_req: Request, res: Response) => {
+    const zipPath = path.join(_dirname, 'public/susamachar-cpanel-ready.zip');
+    if (!fs.existsSync(zipPath)) {
+      return res.status(404).json({ error: 'cPanel full deployment package not found.' });
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="biblesandes-cpanel-full-package.zip"');
+    return res.sendFile(zipPath);
   });
 
   // =========================================================================
@@ -1788,8 +2160,9 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-    app.listen(3000, '0.0.0.0', () => {
-      console.log('Susamachar Christian App Server running on http://localhost:3000');
+    const devPort = Number(process.env.PORT) || 3000;
+    app.listen(devPort, '0.0.0.0', () => {
+      console.log(`Susamachar Christian App Server running on http://localhost:${devPort}`);
     });
   } else {
     const distPath = path.join(_dirname, 'dist');
@@ -1838,8 +2211,8 @@ async function startServer() {
       `);
     });
 
-    const serverPort = process.env.PORT || 3000;
-    app.listen(serverPort, () => {
+    const serverPort = Number(process.env.PORT) || 3000;
+    app.listen(serverPort, '0.0.0.0', () => {
       console.log(`Susamachar Christian App Server running on port ${serverPort}`);
     });
   }

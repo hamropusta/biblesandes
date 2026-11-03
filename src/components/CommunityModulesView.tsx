@@ -84,7 +84,9 @@ export const CommunityModulesView: React.FC<CommunityModulesViewProps> = ({
   const [subTab, setSubTab] = useState<'radio' | 'rates' | 'gallery' | 'events' | 'churches'>(initialSubTab);
 
   useEffect(() => {
-    setSubTab(initialSubTab);
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
   }, [initialSubTab]);
 
   const [selectedGalleryCat, setSelectedGalleryCat] = useState<string>('all');

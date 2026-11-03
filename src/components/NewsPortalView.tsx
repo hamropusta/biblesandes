@@ -773,7 +773,7 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
 
       {/* Filter Mode Bar (All, Social Posts, YouTube Videos, YouTube Shorts, Featured, Saved) */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
           {(
             [
               { id: 'all', ne: 'सबै फिड (All Feed)', en: 'All Feed' },
@@ -787,10 +787,10 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
             <button
               key={m.id}
               onClick={() => setFilterMode(m.id)}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0 ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap shrink-0 shadow-2xs cursor-pointer ${
                 filterMode === m.id
-                  ? 'bg-red-800 text-white'
-                  : 'bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  ? 'bg-red-800 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-stone-50'
               }`}
             >
               {lang === 'ne' ? m.ne : m.en}
@@ -806,16 +806,16 @@ export const NewsPortalView: React.FC<NewsPortalViewProps> = ({
         </span>
       </div>
 
-      {/* Horizontal Category Filter Bar (10 Categories) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
+      {/* Horizontal Category Filter Bar (No ugly scrollbar line, clean smooth scroll) */}
+      <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 no-scrollbar scroll-smooth">
         {NEWS_CATEGORIES.map((cat) => (
           <button
             key={cat.slug}
             onClick={() => setSelectedCategory(cat.slug)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 shadow-2xs cursor-pointer ${
               selectedCategory === cat.slug
-                ? 'bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950'
-                : 'bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-stone-400'
+                ? 'bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-xs scale-[1.02]'
+                : 'bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-red-800/40 hover:bg-stone-50'
             }`}
           >
             {lang === 'ne' ? cat.nameNe : cat.nameEn}

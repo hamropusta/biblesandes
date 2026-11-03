@@ -57,6 +57,12 @@ export const LegalAndAboutView: React.FC<LegalAndAboutViewProps> = ({
   const [activeTab, setActiveTab] = useState<LegalTabType>(initialTab);
   const [docLang, setDocLang] = useState<'ne' | 'en'>(lang);
 
+  React.useEffect(() => {
+    if (initialTab && initialTab !== activeTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   // Interactive Account Deletion Form State
   const [delEmail, setDelEmail] = useState('');
   const [delUsername, setDelUsername] = useState('');
@@ -120,118 +126,10 @@ export const LegalAndAboutView: React.FC<LegalAndAboutViewProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Top Header Card */}
-      <div className="bg-gradient-to-r from-[#FAF6EC] via-white to-[#FAF6EC] dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 border border-[#BC986A]/30 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <img
-                src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
-                alt="Susamachar Emblem"
-                className="h-12 w-auto object-contain shrink-0 drop-shadow-2xs"
-              />
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8D8741] dark:text-[#DAAD86]">
-                  Susamachar · The Good News of Jesus Christ
-                </span>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                  {activeTab === 'privacy' && (docLang === 'ne' ? 'गोपनीयता नीति (Privacy Policy)' : 'Privacy Policy')}
-                  {activeTab === 'delete-account' && (docLang === 'ne' ? 'खाता मेटाउने प्रक्रिया (Delete Your Account)' : 'Delete Your Susamachar Account')}
-                  {activeTab === 'community' && (docLang === 'ne' ? 'समुदाय निर्देशिका (Community Guidelines)' : 'Susamachar Community Guidelines')}
-                  {activeTab === 'terms' && (docLang === 'ne' ? 'सेवाका सर्तहरू (Terms & Conditions)' : 'Terms of Service & Conditions')}
-                  {activeTab === 'about' && (docLang === 'ne' ? 'हाम्रो बारेमा (About Susamachar)' : 'About Susamachar – Good News')}
-                </h1>
-              </div>
-            </div>
-
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
-              {activeTab === 'privacy' &&
-                (docLang === 'ne'
-                  ? 'सुसमाचार (https://biblesandes.com) र मोबाइल एप्सका लागि गुगल प्ले स्टोर, गुगल एडमोब (Google AdMob) तथा अन्तर्राष्ट्रिय नियमहरू अनुरूप आधिकारिक गोपनीयता नीति।'
-                  : 'Official Privacy Policy for Susamachar (https://biblesandes.com) and mobile apps, compliant with Google Play Store, Google AdMob, and data protection policies.')}
-              {activeTab === 'delete-account' &&
-                (docLang === 'ne'
-                  ? 'गुगल प्ले स्टोरको नीति अनुरूप आफ्नो सुसमाचार प्रयोगकर्ता खाता, प्रोफाइल र सम्बद्ध व्यक्तिगत डेटा स्थायी रूपमा मेटाउने विधि।'
-                  : 'Instructions and verified request form to permanently delete your Susamachar account and associated personal data per Google Play policies.')}
-              {activeTab === 'community' &&
-                (docLang === 'ne'
-                  ? 'ख्रीष्टिय प्रेम, आदर र विश्वास अभिवृद्धि गर्नका लागि सुसमाचार समुदाय र टिप्पणी निर्देशिका।'
-                  : 'Code of conduct, respectful discussion guidelines, and content moderation rules for the Susamachar Christian community.')}
-              {activeTab === 'terms' &&
-                (docLang === 'ne'
-                  ? 'सुसमाचार प्लेटफर्म तथा मोबाइल एप्स प्रयोग गर्दा लागू हुने आधिकारिक सेवाका सर्तहरू र प्रतिलिपि अधिकार नियमहरू।'
-                  : 'Official terms and conditions governing the use of Susamachar web platform and mobile applications.')}
-              {activeTab === 'about' &&
-                (docLang === 'ne'
-                  ? '“सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ” — हाम्रो सेवकाइको उद्देश्य, सुविधा र सम्पर्क विवरण।'
-                  : 'Read the Bible, watch sermons, worship, study God’s Word and connect in faith.')}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-              <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/50 text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Google Play & AdMob Ready</span>
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-stone-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                {docLang === 'ne' ? `अन्तिम अद्यावधिक: ${effectiveDateNe}` : `Last Updated: ${effectiveDate}`}
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Actions (Bilingual Toggle, Print, Share Link) */}
-          <div className="flex flex-col sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2.5 shrink-0">
-            {/* Bilingual Document Switcher */}
-            <div className="inline-flex items-center p-1 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setDocLang('ne')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  docLang === 'ne'
-                    ? 'bg-[#8D8741] text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                नेपाली
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocLang('en')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  docLang === 'en'
-                    ? 'bg-[#659DBD] text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                English
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:border-[#659DBD] transition-colors"
-                title="Copy Page URL"
-              >
-                <Copy className="w-3.5 h-3.5 text-[#8D8741]" />
-                <span>{docLang === 'ne' ? 'लिङ्क कपी' : 'Copy URL'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:border-[#659DBD] transition-colors"
-                title="Print Document"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#8D8741]" />
-                <span>{docLang === 'ne' ? 'प्रिन्ट' : 'Print'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
+      {/* Clean Document Navigation & Controls Bar (No redundant Susamachar/About promo banner) */}
+      <div className="bg-white dark:bg-slate-900 border border-[#BC986A]/25 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Navigation Tabs (Privacy, Delete Account, Community, Terms, About) */}
-        <div className="mt-6 pt-5 border-t border-[#BC986A]/20 dark:border-slate-800 flex flex-wrap gap-2 text-xs font-bold">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
           {[
             {
               id: 'privacy' as LegalTabType,
@@ -271,17 +169,66 @@ export const LegalAndAboutView: React.FC<LegalAndAboutViewProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
-                className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap text-xs font-bold shrink-0 ${
                   isSel
-                    ? 'bg-[#8D8741] text-white shadow-xs font-black'
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[#BC986A]/30 hover:bg-[#FAF6EC] dark:hover:bg-slate-700/60 font-medium'
+                    ? 'bg-[#8D8741] text-white shadow-xs'
+                    : 'bg-stone-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[#BC986A]/25 hover:bg-[#FAF6EC] dark:hover:bg-slate-700/60 font-medium'
                 }`}
               >
-                <IconComp className="w-4 h-4 shrink-0" />
+                <IconComp className="w-3.5 h-3.5 shrink-0" />
                 <span>{docLang === 'ne' ? tab.ne : tab.en}</span>
               </button>
             );
           })}
+        </div>
+
+        {/* Quick Actions (Bilingual Toggle, Print, Share Link) */}
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+          {/* Bilingual Document Switcher */}
+          <div className="inline-flex items-center p-0.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setDocLang('ne')}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                docLang === 'ne'
+                  ? 'bg-[#8D8741] text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              नेपाली
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocLang('en')}
+              className={`px-2.5 py-1 rounded-lg transition-all ${
+                docLang === 'en'
+                  ? 'bg-[#659DBD] text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              English
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:border-[#659DBD] transition-colors"
+            title="Copy Page URL"
+          >
+            <Copy className="w-3.5 h-3.5 text-[#8D8741]" />
+            <span className="hidden sm:inline">{docLang === 'ne' ? 'लिङ्क कपी' : 'Copy'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-[#BC986A]/30 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:border-[#659DBD] transition-colors"
+            title="Print Document"
+          >
+            <Printer className="w-3.5 h-3.5 text-[#8D8741]" />
+            <span className="hidden sm:inline">{docLang === 'ne' ? 'प्रिन्ट' : 'Print'}</span>
+          </button>
         </div>
       </div>
 

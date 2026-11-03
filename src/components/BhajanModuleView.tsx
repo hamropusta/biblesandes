@@ -923,10 +923,11 @@ export const BhajanModuleView: React.FC<BhajanModuleViewProps> = ({
       {/* MODE 3: MAIN HYMN LIBRARY READER (NEPALI & HINDI) */}
       {viewMode === 'library' && (
         <div ref={readerTopRef} className="space-y-4">
-          {/* Category Pills & Search Bar */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3">
-            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-              <div className="relative flex-1">
+          {/* Category Pills & Search Bar (Mobile-first responsive layout) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-sm space-y-3">
+            <div className="flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between">
+              {/* Row 1: Search Input */}
+              <div className="relative flex-1 min-w-0">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -939,12 +940,12 @@ export const BhajanModuleView: React.FC<BhajanModuleViewProps> = ({
                   }}
                   placeholder={
                     languageTab === 'hi'
-                      ? 'हिन्दी गीत शीर्षक, Roman Hindi या शब्दों से खोजें (e.g., Aaj ka din, यहोवा, स्तुति)...'
+                      ? 'हिन्दी गीत खोज्नुहोस् (e.g., Aaj ka din, यहोवा)...'
                       : lang === 'ne'
-                      ? 'भजन नम्बर (जस्तै: 1, 24, 93), नेपाली वा रोमन शीर्षक र शब्दहरू खोज्नुहोस्...'
-                      : 'Search by hymn number (e.g. 1, 93), Devanagari/Roman title, or lyrics...'
+                      ? 'भजन नम्बर (जस्तै: 1, 93), शीर्षक वा शब्दहरू...'
+                      : 'Search by hymn number (e.g. 1, 93), title or lyrics...'
                   }
-                  className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-700"
+                  className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-700"
                 />
                 {searchQuery && (
                   <button
@@ -956,23 +957,26 @@ export const BhajanModuleView: React.FC<BhajanModuleViewProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Row 2 on mobile / Right cluster on desktop: Dropdown Selector + Favorites */}
+              <div className="flex items-center gap-2 w-full md:w-auto">
                 {/* Quick Hymn Dropdown to jump directly to any hymn */}
                 {displayedSongs.length > 0 && (
-                  <select
-                    value={selectedSong?.id || ''}
-                    onChange={(e) => {
-                      const found = displayedSongs.find((s) => s.id === Number(e.target.value));
-                      if (found) handleSelectSongToRead(found);
-                    }}
-                    className="h-10 max-w-[230px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-red-700"
-                  >
-                    {displayedSongs.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.hymnNumber ? `#${s.hymnNumber}` : `#${s.id}`} — {s.primaryTitle}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1 md:w-60 min-w-0">
+                    <select
+                      value={selectedSong?.id || ''}
+                      onChange={(e) => {
+                        const found = displayedSongs.find((s) => s.id === Number(e.target.value));
+                        if (found) handleSelectSongToRead(found);
+                      }}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-red-700 truncate"
+                    >
+                      {displayedSongs.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.hymnNumber ? `#${s.hymnNumber}` : `#${s.id}`} — {s.primaryTitle}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 <button
@@ -980,14 +984,14 @@ export const BhajanModuleView: React.FC<BhajanModuleViewProps> = ({
                     setShowFavoritesOnly(!showFavoritesOnly);
                     setIsReadingFocused(false);
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold border transition ${
+                  className={`h-10 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 rounded-xl text-xs font-bold border transition shrink-0 ${
                     showFavoritesOnly
                       ? 'bg-red-800 text-white border-red-800'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  <Heart className={`w-4 h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
-                  <span>
+                  <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-current text-white' : 'text-rose-500'}`} />
+                  <span className="whitespace-nowrap">
                     {lang === 'ne'
                       ? `मनपर्ने (${toNepaliDigits(favoriteIds.length)})`
                       : `Saved (${favoriteIds.length})`}
@@ -997,31 +1001,33 @@ export const BhajanModuleView: React.FC<BhajanModuleViewProps> = ({
                 {isAdminView && (
                   <button
                     onClick={openCreateModal}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition"
+                    className="h-10 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition shrink-0"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>{lang === 'ne' ? 'गीत थप्नुहोस्' : 'Add Song'}</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{lang === 'ne' ? 'गीत थप्नुहोस्' : 'Add Song'}</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 mr-1">
-                <Filter className="w-3.5 h-3.5" />
-                {lang === 'ne' ? 'पुस्तक / श्रेणी:' : 'Songbook:'}
+            {/* Category Filter Pills (No scrollbar line, clean mobile view without clipping) */}
+            <div className="pt-2 pb-1.5 px-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth overscroll-x-contain">
+              <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+                <Filter className="w-3.5 h-3.5 text-red-800 dark:text-amber-400" />
+                <span className="hidden sm:inline">{lang === 'ne' ? 'श्रेणी:' : 'Category:'}</span>
               </span>
-              {categoryOptions.map((cat) => (
+              {categoryOptions.map((cat, idx) => (
                 <button
                   key={cat.id}
                   onClick={() => {
                     setCategoryFilter(cat.id);
                     setIsReadingFocused(false);
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all whitespace-nowrap shadow-2xs cursor-pointer ${
+                    idx === 0 ? 'ml-0.5' : ''
+                  } ${
                     categoryFilter === cat.id
-                      ? 'bg-[#7F1D1D] text-white shadow-sm'
+                      ? 'bg-[#7F1D1D] text-white shadow-xs scale-[1.02]'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >

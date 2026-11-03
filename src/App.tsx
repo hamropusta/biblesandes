@@ -121,6 +121,7 @@ type PrimarySection =
   | 'healthtips'
   | 'forex'
   | 'unicode'
+  | 'tools'
   | 'admin'
   | 'privacy'
   | 'terms'
@@ -175,41 +176,123 @@ const DEFAULT_HOME_VIDEOS: HomeVideoItem[] = [
 export default function App() {
   const [lang, setLang] = useState<'ne' | 'en'>('ne');
   const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  const resolveSectionFromUrl = (rawPathOrHash?: string): PrimarySection => {
+    const raw =
+      rawPathOrHash ||
+      (typeof window !== 'undefined' ? window.location.hash || window.location.pathname : '');
+    const clean = raw.toLowerCase().replace(/^[#/]+/, '').trim().split('?')[0].split('/')[0];
+    if (clean === 'privacy') return 'privacy';
+    if (clean === 'terms') return 'terms';
+    if (clean === 'about') return 'about';
+    if (clean === 'delete-account' || clean === 'delete_account') return 'delete-account';
+    if (clean === 'community') return 'community';
+    if (clean === 'unicode' || clean === 'nepali-unicode') return 'unicode';
+    if (clean === 'notes') return 'notes';
+    if (clean === 'tools') return 'tools';
+    if (clean === 'churches' || clean === 'church' || clean === 'mandali') return 'churches';
+    if (clean === 'bible') return 'bible';
+    if (clean === 'bhajan') return 'bhajan';
+    if (clean === 'prayer') return 'prayer';
+    if (clean === 'news') return 'news';
+    if (clean === 'quiz') return 'quiz';
+    if (clean === 'daily_word' || clean === 'daily-word' || clean === 'bachan') return 'daily_word';
+    if (clean === 'calendar') return 'calendar';
+    if (clean === 'converter') return 'converter';
+    if (clean === 'radio') return 'radio';
+    if (clean === 'rates') return 'rates';
+    if (clean === 'gallery') return 'gallery';
+    if (clean === 'events') return 'events';
+    if (clean === 'podcasts') return 'podcasts';
+    if (clean === 'healthtips') return 'healthtips';
+    if (clean === 'forex') return 'forex';
+    if (clean === 'admin') return 'admin';
+    return 'home';
+  };
+
   const [activeSection, setActiveSection] = useState<PrimarySection>(() => {
     if (typeof window !== 'undefined') {
-      const pathOrHash = (window.location.pathname + window.location.hash).toLowerCase();
-      if (pathOrHash.includes('nepali-unicode') || pathOrHash.includes('unicode')) {
-        return 'unicode';
-      }
-      if (pathOrHash.includes('privacy')) return 'privacy';
-      if (pathOrHash.includes('delete-account') || pathOrHash.includes('delete_account')) return 'delete-account';
-      if (pathOrHash.includes('community')) return 'community';
-      if (pathOrHash.includes('terms')) return 'terms';
-      if (pathOrHash.includes('about')) return 'about';
+      const full = window.location.hash || window.location.pathname;
+      return resolveSectionFromUrl(full);
     }
     return 'home';
   });
 
-  // Listen to hash changes (e.g. #privacy, #delete-account, #community, #terms, #about) for Google Play & AdMob reviewers
+  const navigateToSection = (section: PrimarySection) => {
+    setActiveSection(section);
+    if (typeof window !== 'undefined') {
+      const targetPath = section === 'home' ? '/' : `/${section}`;
+      if (window.location.pathname !== targetPath || window.location.hash) {
+        window.history.pushState({ section }, '', targetPath);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Listen to browser popstate (back/forward) and automatically clean any legacy '#' hash from URLs
   useEffect(() => {
-    const handleHash = () => {
-      const hash = window.location.hash.toLowerCase().replace('#', '');
-      if (
-        hash === 'privacy' ||
-        hash === 'terms' ||
-        hash === 'about' ||
-        hash === 'delete-account' ||
-        hash === 'delete_account' ||
-        hash === 'community'
-      ) {
-        setActiveSection(
-          hash === 'delete_account' ? 'delete-account' : (hash as PrimarySection)
-        );
+    if (typeof window !== 'undefined') {
+      if (window.location.hash) {
+        const target = resolveSectionFromUrl(window.location.hash);
+        const targetPath = target === 'home' ? '/' : `/${target}`;
+        window.history.replaceState({ section: target }, '', targetPath);
+        setActiveSection(target);
+      }
+    }
+
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const target = resolveSectionFromUrl(window.location.pathname);
+        setActiveSection(target);
       }
     };
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Dynamically update document title, description, and canonical link for top Google SEO ranking
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const titles: Record<PrimarySection, string> = {
+      home: 'बाइबल सन्देश (सुसमाचार) – पवित्र बाइबल, भजन, आजको बचन, मण्डली निर्देशिका | biblesandes.com',
+      bible: 'पवित्र बाइबल (Holy Bible - 66 Books) – नेपाली र अंग्रेजी बाइबल | बाइबल सन्देश',
+      bhajan: 'ख्रीष्टिय भजन र कोरस (Christian Hymns & Songs) – नेपाली र हिन्दी भजन | बाइबल सन्देश',
+      daily_word: 'आजको बचन (Today’s Word) – दैनिक बाइबल वचन र आत्मिक मनन | बाइबल सन्देश',
+      prayer: 'प्रार्थना पर्खाल (Prayer Wall) – प्रार्थना निवेदन तथा साझा बिन्ती | बाइबल सन्देश',
+      news: 'इसाई समाचार (Christian News Nepal) – ताजा सुसमाचार, मण्डली गतिविधि | बाइबल सन्देश',
+      churches: 'नेपाल मण्डली निर्देशिका (Nepal Church Directory) – मण्डली खोज्नुहोस् | बाइबल सन्देश',
+      quiz: 'बाइबल क्विज (Timed Bible Quiz) – ६६ पुस्तक ज्ञान परीक्षण | बाइबल सन्देश',
+      unicode: 'नेपाली युनिकोड (Nepali Unicode Converter) – सजिलो युनिकोड टाइप | बाइबल सन्देश',
+      notes: 'नोट र रिमाइन्डर (Personal Spiritual Notes & Reminders) | बाइबल सन्देश',
+      tools: 'डिजिटल इसाई उपकरणहरू (Christian Tools Hub) – युनिकोड, क्यालेन्डर, विनिमय | बाइबल सन्देश',
+      calendar: 'नेपाली पात्रो (Bikram Sambat BS Calendar) – इसाई चाडपर्व तथा विदाहरू | बाइबल सन्देश',
+      converter: 'मिति परिवर्तन (BS ↔ AD Date Converter) – बिक्रम संवत र इस्वी संवत | बाइबल सन्देश',
+      radio: 'ख्रीष्टिय एफ.एम. रेडियो र भजन संगीत (Christian FM Radio Stream) | बाइबल सन्देश',
+      rates: 'सुनचाँदीको आजको दर (Gold & Silver Rates Nepal) | बाइबल सन्देश',
+      forex: 'आजको विदेशी विनिमय दर (Forex Rates Nepal) | बाइबल सन्देश',
+      gallery: 'फोटो ग्यालरी (Christian Event Photo Gallery) | बाइबल सन्देश',
+      events: 'इसाई सम्मेलन तथा संगति कार्यक्रमहरू (Christian Events) | बाइबल सन्देश',
+      podcasts: 'ख्रीष्टिय पोडकास्ट (Christian Audio Podcasts) | बाइबल सन्देश',
+      healthtips: 'जीवन र स्वास्थ्य उपयोगी टिप्स (Life & Health Tips) | बाइबल सन्देश',
+      about: 'हाम्रो बारेमा (About Bible Sandesh) – इसाई डिजिटल मञ्च | biblesandes.com',
+      privacy: 'गोपनीयता नीति (Privacy Policy & AdMob Compliance) – बाइबल सन्देश',
+      terms: 'सेवाका सर्तहरू (Terms & Conditions) – बाइबल सन्देश | biblesandes.com',
+      community: 'समुदाय निर्देशिका (Community Guidelines) – बाइबल सन्देश',
+      'delete-account': 'खाता मेटाउने अनुरोध (Delete Account) – बाइबल सन्देश',
+      admin: 'व्यवस्थापक लगइन (Admin CMS Dashboard) – बाइबल सन्देश',
+    };
+
+    const targetTitle = titles[activeSection] || titles.home;
+    document.title = targetTitle;
+
+    const canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    const cleanPath = activeSection === 'home' ? '/' : `/${activeSection}`;
+    if (canonical) {
+      canonical.href = `https://biblesandes.com${cleanPath}`;
+    }
+  }, [activeSection]);
 
   // Application Data State (pre-written Christian news removed; only user-posted items when added)
   const [news, setNews] = useState<NewsArticle[]>(INITIAL_NEWS_ARTICLES);
@@ -772,6 +855,29 @@ export default function App() {
     }
   };
 
+  const handleUpdateNews = async (id: number, payload: Partial<NewsArticle>) => {
+    setNews((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, ...payload } : n))
+    );
+    try {
+      const res = await fetch(`/api/admin/news/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.article) {
+          setNews((prev) =>
+            prev.map((n) => (n.id === id ? json.article : n))
+          );
+        }
+      }
+    } catch {
+      // local state already updated
+    }
+  };
+
   const handleDeleteNews = async (id: number) => {
     setNews((prev) => prev.filter((n) => n.id !== id));
     try {
@@ -923,32 +1029,6 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-[#FAF6EC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
       {/* Hidden Real HTML5 Audio Element for Live FM Radio Streams */}
       <audio ref={audioRef} className="hidden" preload="none" />
-
-      {/* Top cPanel Deployment & Google Drive Hub Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 via-stone-900 to-amber-900 text-white px-3 sm:px-6 py-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm z-40 relative">
-        <div className="flex items-center gap-2">
-          <span className="bg-emerald-500 text-white font-bold px-2 py-0.5 rounded text-[11px] shadow-xs">
-            cPanel Deploy & Drive
-          </span>
-          <span className="text-stone-200">
-            <strong>biblesandes.com</strong> को लागि <span className="text-amber-300 font-mono">dist-only.zip</span> र Google Picker मार्फत ड्राइभ व्यवस्थापन
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowGooglePickerModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-lg text-xs shadow transition-all cursor-pointer"
-          >
-            <span>Google Picker (Drive)</span>
-          </button>
-          <button
-            onClick={() => setShowDeployModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold rounded-lg text-xs shadow transition-all cursor-pointer"
-          >
-            <span>cPanel Zip / Drive खोल्नुहोस्</span>
-          </button>
-        </div>
-      </div>
 
       {/* =====================================================================
           HEADER SYSTEM (Serene Clean Header Styled with Image 3 Palette)
@@ -1104,7 +1184,7 @@ export default function App() {
               />
             </a>
 
-            {/* Navigation Links with Icons & Names (Home, Bible, Bhajan, Prayer, News, Church) */}
+            {/* Navigation Links with Icons & Names (Home, Bible, Bhajan, Prayer, News, Church, Tools) */}
             <nav
               aria-label="Main Navigation"
               className="flex items-center justify-center gap-1 lg:gap-1.5 text-xs lg:text-sm font-semibold text-slate-700 dark:text-slate-200"
@@ -1116,14 +1196,15 @@ export default function App() {
                 { id: 'prayer', icon: HeartHandshake, ne: 'प्रार्थना', en: 'Prayer' },
                 { id: 'news', icon: Newspaper, ne: 'समाचार', en: 'News' },
                 { id: 'churches', icon: Building2, ne: 'मण्डली', en: 'Church' },
+                { id: 'tools', icon: Wrench, ne: 'उपकरणहरू', en: 'Tools' },
               ].map((item) => {
                 const IconComp = item.icon;
                 const isActive = activeSection === item.id;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveSection(item.id as PrimarySection)}
-                    className={`px-3 lg:px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+                    onClick={() => navigateToSection(item.id as PrimarySection)}
+                    className={`px-2.5 lg:px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       isActive
                         ? 'bg-[#659DBD] text-white font-bold shadow-xs'
                         : 'hover:text-[#659DBD] dark:hover:text-[#FBEEC1] hover:bg-[#FBEEC1]/50 dark:hover:bg-slate-800/70'
@@ -1139,7 +1220,7 @@ export default function App() {
             {/* Primary Right CTA Buttons: बाइबल क्विज (Bible Quiz) + आजको बचन (Today's Word Page) */}
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setActiveSection('quiz')}
+                onClick={() => navigateToSection('quiz')}
                 className={`px-3.5 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 border shadow-2xs ${
                   activeSection === 'quiz'
                     ? 'bg-[#8D8741] text-white border-[#746F33] shadow-xs'
@@ -1151,7 +1232,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setActiveSection('daily_word')}
+                onClick={() => navigateToSection('daily_word')}
                 className={`px-4 py-2 text-xs lg:text-sm font-bold rounded-xl transition-all whitespace-nowrap shrink-0 min-h-[38px] flex items-center gap-1.5 shadow-xs ${
                   activeSection === 'daily_word'
                     ? 'bg-[#8D8741] text-white ring-2 ring-[#BC986A]/50'
@@ -1174,10 +1255,10 @@ export default function App() {
           {/* Mobile Single Clean Navbar: Logo on left | Search & Menu Drawer on right */}
           <div className="px-4 h-14 flex items-center justify-between gap-2 border-b border-[#BC986A]/20 dark:border-slate-800 bg-[#FAF6EC] dark:bg-slate-900">
             <a
-              href="#home"
+              href="/"
               onClick={(e) => {
                 e.preventDefault();
-                setActiveSection('home');
+                navigateToSection('home');
               }}
               className="flex items-center shrink-0 hover:opacity-90 transition-opacity"
               title={lang === 'ne' ? 'गृहपृष्ठ (Home)' : 'Home'}
@@ -1278,7 +1359,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setShowMobileMenuDrawer(false);
-                  setActiveSection('admin');
+                  navigateToSection('admin');
                 }}
                 className="w-full h-9 px-3 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
@@ -1316,7 +1397,7 @@ export default function App() {
                     <button
                       key={item.id}
                       onClick={() => {
-                        setActiveSection(item.id as PrimarySection);
+                        navigateToSection(item.id as PrimarySection);
                         setShowMobileMenuDrawer(false);
                       }}
                       className={`w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-left transition-colors ${
@@ -1396,9 +1477,6 @@ export default function App() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#365E73]/95 via-[#659DBD]/50 to-transparent" />
 
                 <div className="relative z-10 space-y-3 max-w-2xl">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FBEEC1]/20 border border-[#FBEEC1]/30 text-xs font-semibold text-[#FBEEC1] backdrop-blur-xs">
-                    <span>biblesandes.com • बाइबल सन्देश • प्रेममा सेवा गरौँ</span>
-                  </div>
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white font-editorial">
                     {lang === 'ne'
                       ? 'बाइबल सन्देश – नेपाली इसाई संजाल तथा डिजिटल मञ्च'
@@ -1412,7 +1490,7 @@ export default function App() {
 
                   <div className="pt-2 flex flex-wrap items-center gap-2.5">
                     <button
-                      onClick={() => setActiveSection('bible')}
+                      onClick={() => navigateToSection('bible')}
                       className="h-11 px-5 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-xs whitespace-nowrap shrink-0"
                     >
                       <BookOpen className="w-4 h-4" />
@@ -1943,124 +2021,6 @@ export default function App() {
                 ))}
               </div>
             </section>
-
-            {/* About सुसमाचार / बाइबल सन्देश & Official Contact + Social Icons */}
-            <section className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              <div className="lg:col-span-8 space-y-3">
-                <div className="flex items-center gap-3">
-                  <img
-                    src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
-                    alt="बाइबल सन्देश · Bible Sandesh Logo"
-                    className="h-14 w-auto object-contain shrink-0"
-                  />
-                  <div>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-red-800 dark:text-amber-400">
-                      <Info className="w-3.5 h-3.5" />
-                      <span>
-                        {lang === 'ne'
-                          ? 'हाम्रो बारेमा — सुसमाचार / बाइबल सन्देश (About Susamachar · biblesandes.com)'
-                          : 'About Susamachar · Bible Sandes (biblesandes.com)'}
-                      </span>
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mt-0.5">
-                      {lang === 'ne'
-                        ? 'बाइबल सन्देश (सुसमाचार) — “सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ”'
-                        : 'Bible Sandesh (Susamachar) — “Share the Gospel • Grow in Faith • Serve with Love”'}
-                    </h2>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {lang === 'ne'
-                    ? 'सुसमाचार (biblesandes.com) नेपाल र विश्वभरका नेपाली भाषी विश्वासी, युवा र परिवारहरूका लागि तयार पारिएको सम्पूर्ण ख्रीष्टिय डिजिटल मञ्च हो। यसमा बहुभाषी पवित्र बाइबल (नेपाली, हिन्दी र अंग्रेजी), ख्रीष्टिय भजन संग्रह, आजको बचन, बाइबल क्विज, नोट र रिमाइन्डर, पोडकास्ट, जीवन र स्वास्थ्य टिप्स तथा बाइबल वालपेपर स्टुडियो समावेश छन्।'
-                    : 'Susamachar (biblesandes.com) is a Christian platform serving Nepali, Hindi, and English-speaking believers with the Holy Bible, Christian Hymns, Timed Bible Quiz, Personal Notes & Reminders, Podcasts, Health Tips, and Bible Wallpaper Studio.'}
-                </p>
-
-                {/* Official Phone & Social Media Icons Bar */}
-                <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs font-semibold">
-                  <a
-                    href="tel:9858064058"
-                    className="h-9 px-3.5 rounded-xl bg-red-800/10 dark:bg-amber-400/15 text-red-800 dark:text-amber-300 font-mono font-bold inline-flex items-center gap-1.5 hover:bg-red-800 hover:text-white transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>९८५८०६४०५८ (9858064058)</span>
-                  </a>
-
-                  <a
-                    href="https://www.facebook.com/susamachar/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-xl bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20 inline-flex items-center gap-1.5 hover:bg-blue-600 hover:text-white transition-colors"
-                    title="Facebook"
-                  >
-                    <Facebook className="w-3.5 h-3.5" />
-                    <span>Facebook</span>
-                  </a>
-
-                  <a
-                    href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-xl bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-600/20 inline-flex items-center gap-1.5 hover:bg-emerald-600 hover:text-white transition-colors"
-                    title="WhatsApp Channel"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
-                  </a>
-
-                  <a
-                    href="https://www.instagram.com/susamachar"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-xl bg-pink-600/10 text-pink-700 dark:text-pink-400 border border-pink-600/20 inline-flex items-center gap-1.5 hover:bg-pink-600 hover:text-white transition-colors"
-                    title="Instagram"
-                  >
-                    <Instagram className="w-3.5 h-3.5" />
-                    <span>Instagram</span>
-                  </a>
-
-                  <a
-                    href="https://www.youtube.com/@susamacharnp"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-xl bg-red-600/10 text-red-700 dark:text-red-400 border border-red-600/20 inline-flex items-center gap-1.5 hover:bg-red-600 hover:text-white transition-colors"
-                    title="YouTube"
-                  >
-                    <Youtube className="w-3.5 h-3.5" />
-                    <span>YouTube</span>
-                  </a>
-
-                  <a
-                    href="https://x.com/susamachar"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 px-3.5 rounded-xl bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white border border-slate-400/20 inline-flex items-center gap-1.5 hover:bg-slate-900 hover:text-white transition-colors"
-                    title="X (Twitter)"
-                  >
-                    <span className="font-mono font-black text-xs">𝕏</span>
-                    <span>X (Twitter)</span>
-                  </a>
-                </div>
-              </div>
-
-              <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5">
-                <button
-                  onClick={() => setActiveFooterModal('about')}
-                  className="h-11 px-5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Info className="w-4 h-4" />
-                  <span>{lang === 'ne' ? 'हाम्रो बारेमा पूरा विवरण (About Us)' : 'Read Full About Susamachar'}</span>
-                </button>
-                <a
-                  href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{lang === 'ne' ? 'WhatsApp च्यानलमा जोडिनुहोस्' : 'Join WhatsApp Channel'}</span>
-                </a>
-              </div>
-            </section>
           </div>
         )}
 
@@ -2400,6 +2360,7 @@ export default function App() {
             onSelectAdminRole={(role) => setCurrentAdmin(role)}
             news={news}
             onCreateNews={handleCreateNews}
+            onUpdateNews={handleUpdateNews}
             onDeleteNews={handleDeleteNews}
             prayers={prayers}
             onModeratePrayer={handleModeratePrayer}
@@ -2410,6 +2371,7 @@ export default function App() {
             auditLogs={auditLogs}
             onNotify={notify}
             onExitAdmin={() => setActiveSection('home')}
+            onOpenCPanelModal={() => setShowDeployModal(true)}
           />
         )}
 
@@ -2425,15 +2387,154 @@ export default function App() {
             lang={lang}
             initialTab={activeSection as LegalTabType}
             onNavigateTab={(tab) => {
-              setActiveSection(tab as PrimarySection);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              navigateToSection(tab as PrimarySection);
             }}
             onOpenSection={(sec) => {
-              setActiveSection(sec as PrimarySection);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              navigateToSection(sec as PrimarySection);
             }}
             onNotify={notify}
           />
+        )}
+
+        {/* ===================================================================
+            TOOLS & DIGITAL RESOURCES HUB (उपकरणहरू - #tools)
+           =================================================================== */}
+        {activeSection === 'tools' && (
+          <div className="space-y-8">
+            <div className="text-center max-w-2xl mx-auto space-y-3">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#FBEEC1]/50 border border-[#BC986A]/40 text-xs font-bold text-[#8D8741] dark:text-[#DAAD86]">
+                <Wrench className="w-3.5 h-3.5" />
+                <span>{lang === 'ne' ? 'डिजिटल उपकरणहरू' : 'Digital Christian Tools'}</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                {lang === 'ne' ? 'सुसमाचार दैनिक उपयोगी उपकरणहरू' : 'Susamachar Digital Tools & Utilities'}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                {lang === 'ne'
+                  ? 'नेपाली युनिकोड, व्यक्तिगत नोट र रिमाइन्डर, बाइबल क्विज, पात्रो मिति परिवर्तन, दैनिक सुनचाँदी तथा विदेशी विनिमय दर।'
+                  : 'Nepali Unicode converter, personal notes, timed Bible quiz, Bikram Sambat date converter, and financial rates.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                {
+                  id: 'unicode',
+                  icon: Keyboard,
+                  titleNe: 'नेपाली युनिकोड कन्भर्टर',
+                  titleEn: 'Nepali Unicode Converter',
+                  descNe: 'रोमन वा परम्परागत नेपाली फन्टलाई शुद्ध नेपाली युनिकोडमा परिवर्तन गर्नुहोस्।',
+                  descEn: 'Convert Romanized or Preeti text to clean, universal Nepali Unicode text.',
+                  badge: 'Keyboard Tool',
+                },
+                {
+                  id: 'notes',
+                  icon: StickyNote,
+                  titleNe: 'नोट र रिमाइन्डर (Notes)',
+                  titleEn: 'Personal Notes & Reminders',
+                  descNe: 'बाइबलीय मनन, व्यक्तिगत प्रार्थना सूची र दैनिक कामहरूको रिमाइन्डर सुरक्षित गर्नुहोस्।',
+                  descEn: 'Record spiritual thoughts, prayer lists, and personal reminders with local storage.',
+                  badge: 'Productivity',
+                },
+                {
+                  id: 'quiz',
+                  icon: Trophy,
+                  titleNe: 'बाइबल क्विज (Timed Quiz)',
+                  titleEn: 'Timed Bible Quiz (66 Books)',
+                  descNe: '६६ वटै पुस्तकका सयौँ प्रश्नहरूसँग आफ्नो बाइबलीय ज्ञान परीक्षण गर्नुहोस्।',
+                  descEn: 'Test your Biblical knowledge across all 66 books with timed sessions and resume support.',
+                  badge: 'Quiz & Study',
+                },
+                {
+                  id: 'converter',
+                  icon: ArrowLeftRight,
+                  titleNe: 'नेपाली पात्रो तथा मिति रूपान्तरण',
+                  titleEn: 'BS ↔ AD Date Converter',
+                  descNe: '२००० देखि २०९० सम्मको आधिकारिक बिक्रम संवत् र ग्रेगोरियन मिति रूपान्तरण।',
+                  descEn: 'Convert accurately between Bikram Sambat (BS) and Gregorian (AD) dates from 1943 to 2034.',
+                  badge: 'Calendar Engine',
+                },
+                {
+                  id: 'churches',
+                  icon: Building2,
+                  titleNe: 'मण्डली निर्देशिका (Churches)',
+                  titleEn: 'Church Directory & Fellowship',
+                  descNe: 'नेपाल र विदेशका नेपाली मण्डलीहरू, पास्टर अगुवा र आराधना संगतिको समय।',
+                  descEn: 'Find local congregations, pastor contacts, fellowship times, and addresses.',
+                  badge: 'Fellowship',
+                },
+                {
+                  id: 'rates',
+                  icon: Coins,
+                  titleNe: 'दैनिक सुनचाँदी दर',
+                  titleEn: 'Daily Gold & Silver Rates',
+                  descNe: 'नेपाल सुनचाँदी व्यवसायी महासंघ (FENEGOSIDA) को आधिकारिक दैनिक बजार दर।',
+                  descEn: 'Official daily fine gold, tejabi gold, and silver rates in Nepalese Rupees.',
+                  badge: 'Market Rates',
+                },
+                {
+                  id: 'forex',
+                  icon: DollarSign,
+                  titleNe: 'विदेशी विनिमय दर (Forex)',
+                  titleEn: 'Foreign Currency Rates (NRB)',
+                  descNe: 'नेपाल राष्ट्र बैंकद्वारा निर्धारित अमेरिकी डलर, युरो, पाउन्ड र खाडी देशका विनिमय दर।',
+                  descEn: 'Daily foreign currency buying and selling rates by Nepal Rastra Bank.',
+                  badge: 'Exchange Rates',
+                },
+                {
+                  id: 'podcasts',
+                  icon: Mic,
+                  titleNe: 'ख्रीष्टिय पोडकास्ट तथा प्रवचन',
+                  titleEn: 'Christian Audio & Sermons',
+                  descNe: 'नेपाली ख्रीष्टिय अगुवाहरूका आत्मिक सन्देश, शिक्षा र उत्साहजनक पोडकास्ट।',
+                  descEn: 'Inspiring biblical teachings, youth sermons, and faith-building podcasts.',
+                  badge: 'Audio & Faith',
+                },
+                {
+                  id: 'healthtips',
+                  icon: Activity,
+                  titleNe: 'जीवन र स्वास्थ्य टिप्स',
+                  titleEn: 'Life & Health Tips',
+                  descNe: 'शारीरिक, मानसिक र आत्मिक स्वास्थ्यका लागि व्यावहारिक बाइबलीय सुझावहरू।',
+                  descEn: 'Practical biblical guidance for family harmony, physical wellness, and mental peace.',
+                  badge: 'Wellness',
+                },
+              ].map((tool) => {
+                const ToolIcon = tool.icon;
+                return (
+                  <div
+                    key={tool.id}
+                    onClick={() => navigateToSection(tool.id as PrimarySection)}
+                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-[#BC986A]/25 dark:border-slate-800 hover:border-[#659DBD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 text-[#8D8741] dark:text-[#FBEEC1] group-hover:bg-[#659DBD] group-hover:text-white flex items-center justify-center transition-colors shadow-2xs">
+                          <ToolIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                          {tool.badge}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#659DBD] transition-colors">
+                          {lang === 'ne' ? tool.titleNe : tool.titleEn}
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                          {lang === 'ne' ? tool.descNe : tool.descEn}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-stone-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-[#8D8741] dark:text-[#DAAD86] group-hover:text-[#659DBD]">
+                      <span>{lang === 'ne' ? 'उपकरण खोल्नुहोस्' : 'Open Tool'}</span>
+                      <span>→</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
       </main>
@@ -2514,8 +2615,8 @@ export default function App() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id as PrimarySection)}
-                className={`min-h-[48px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl mx-0.5 sm:mx-1.5 transition-colors ${
+                onClick={() => navigateToSection(item.id as PrimarySection)}
+                className={`min-h-[48px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl mx-0.5 sm:mx-1.5 transition-colors cursor-pointer ${
                   isActive
                     ? 'text-[#659DBD] dark:text-[#659DBD] bg-[#659DBD]/15 dark:bg-[#659DBD]/20 font-bold'
                     : 'text-slate-600 dark:text-slate-400 hover:text-[#659DBD] dark:hover:text-[#659DBD] hover:bg-[#FAF6EC] dark:hover:bg-slate-800/60 font-medium'
@@ -2532,255 +2633,331 @@ export default function App() {
       </nav>
 
       {/* =====================================================================
-          REDESIGNED FOOTER WITH SOCIAL ICONS (Facebook, WhatsApp, Instagram, YouTube, X)
+          REDESIGNED STRUCTURED FOOTER (Centered on Mobile, Balanced Columns, 1-Line Bottom Bar)
          ===================================================================== */}
-      <footer className="bg-white dark:bg-slate-900 border-t border-[#BC986A]/20 dark:border-slate-800 py-10 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center gap-6">
-          {/* First Line / Block: Logo + Slogan + Social Media Icons */}
-          <div className="flex flex-col items-center space-y-3">
-            <a
-              href="#home"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveSection('home');
-              }}
-              className="flex items-center justify-center"
-            >
-              <img
-                src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
-                alt="Bible Sandesh Logo"
-                className="h-16 w-auto object-contain shrink-0 drop-shadow-xs"
-              />
-            </a>
-            <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 max-w-xl">
-              {lang === 'ne'
-                ? '“सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ”'
-                : '“Share the Gospel • Grow in Faith • Serve with Love”'}
-            </p>
+      <footer className="relative bg-[#FAF6EC] dark:bg-slate-950 border-t-2 border-[#BC986A]/35 dark:border-slate-800 pt-10 pb-16 mt-16 text-slate-700 dark:text-slate-300 shadow-sm">
+        {/* Top Decorative Christian Accent Stripe */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8D8741] via-[#BC986A] to-[#659DBD]" />
 
-            {/* Bilingual Nepali (BS) & English (AD) Date Badge in Footer */}
-            <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-              <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/40 text-xs">
-                <Calendar className="w-3.5 h-3.5 text-[#8D8741] dark:text-[#DAAD86] shrink-0" />
-                <span className="font-bold text-[#8D8741] dark:text-[#DAAD86]">
-                  वि.सं. {todayBS.formattedNe}
-                </span>
-                <span className="text-[#BC986A]">•</span>
-                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                  {todayADFormatted}
-                </span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 pb-10 border-b border-[#BC986A]/20 dark:border-slate-800">
+            {/* Column 1 (4 cols): Platform Branding, Slogan, Contact & Social - Centered on Mobile */}
+            <div className="lg:col-span-4 space-y-4 flex flex-col items-center text-center sm:items-start sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <img
+                  src="/assets/aistudio/Bible_Sandesh__Radiant_Faith_Emblem_c37247e4.png"
+                  alt="बाइबल सन्देश · Bible Sandesh"
+                  className="h-16 w-auto object-contain shrink-0 drop-shadow-2xs mx-auto sm:mx-0"
+                />
+                <div className="text-center sm:text-left">
+                  <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white leading-tight">
+                    बाइबल सन्देश (सुसमाचार)
+                  </h3>
+                  <p className="text-xs text-[#8D8741] dark:text-[#DAAD86] font-semibold mt-0.5">
+                    biblesandes.com · इसाई डिजिटल मञ्च
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans max-w-md mx-auto sm:mx-0 text-center sm:text-left">
+                {lang === 'ne'
+                  ? '“सुसमाचार बाँडौँ • विश्वासमा बढौँ • प्रेममा सेवा गरौँ” — पवित्र बाइबल, भजन, आजको बचन, प्रार्थना पर्खाल, इसाई समाचार, मण्डली निर्देशिका तथा दैनिक डिजिटल उपकरणहरू।'
+                  : '“Share the Gospel • Grow in Faith • Serve with Love” — Multilingual Holy Bible, Christian Hymns, Daily Word, Prayer Wall, News, Church Directory, and Christian tools.'}
+              </p>
+
+              {/* Verified Contact Details - Centered on mobile */}
+              <div className="space-y-1.5 text-xs flex flex-col items-center sm:items-start">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-[#8D8741] shrink-0" />
+                  <span className="text-slate-500">सम्पर्क:</span>
+                  <a href="tel:9858064058" className="font-mono font-bold text-slate-900 dark:text-white hover:text-[#659DBD]">
+                    ९८५८०६४०५८ (9858064058)
+                  </a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-3.5 h-3.5 text-[#8D8741] shrink-0" />
+                  <span className="text-slate-500">वेबसाइट:</span>
+                  <a href="https://biblesandes.com" className="font-mono font-semibold text-slate-800 dark:text-slate-200 hover:text-[#659DBD]">
+                    https://biblesandes.com
+                  </a>
+                </div>
+              </div>
+
+              {/* Social Channels - Centered on mobile */}
+              <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <a
+                  href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 px-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 flex items-center gap-1.5 text-xs font-semibold hover:bg-emerald-600 hover:text-white transition-colors"
+                  title="WhatsApp"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+                <a
+                  href="https://www.facebook.com/susamachar/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 px-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-500/25 flex items-center gap-1.5 text-xs font-semibold hover:bg-[#1877F2] hover:text-white transition-colors"
+                  title="Facebook"
+                >
+                  <Facebook className="w-3.5 h-3.5" />
+                  <span>Facebook</span>
+                </a>
+                <a
+                  href="https://www.instagram.com/susamachar"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 px-2.5 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-500/25 flex items-center gap-1.5 text-xs font-semibold hover:bg-pink-600 hover:text-white transition-colors"
+                  title="Instagram"
+                >
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>Instagram</span>
+                </a>
+                <a
+                  href="https://www.youtube.com/@susamacharnp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 px-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-500/25 flex items-center gap-1.5 text-xs font-semibold hover:bg-red-600 hover:text-white transition-colors"
+                  title="YouTube"
+                >
+                  <Youtube className="w-3.5 h-3.5" />
+                  <span>YouTube</span>
+                </a>
+                <a
+                  href="https://x.com/susamachar"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 w-8 rounded-lg bg-stone-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center text-xs font-mono font-bold hover:bg-black hover:text-white transition-colors"
+                  title="X"
+                >
+                  𝕏
+                </a>
               </div>
             </div>
 
-            {/* Social Media & Contact Icons Row */}
-            <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5 text-xs font-semibold">
-              <a
-                href="tel:9858064058"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#8D8741] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors font-mono"
-                title="Phone: 9858064058"
-              >
-                <Phone className="w-3.5 h-3.5 text-[#8D8741]" />
-                <span>९८५८०६४०५८</span>
-              </a>
+            {/* Columns 2, 3, 4 (8 cols): Structured Multi-Column Grid for Links on Mobile & Desktop */}
+            <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-8">
+              {/* Column 2: आत्मिक स्रोतहरू (Spiritual Resources) */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white border-b border-[#BC986A]/20 pb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-[#8D8741]" />
+                  <span>{lang === 'ne' ? 'आत्मिक स्रोतहरू' : 'Spiritual Resources'}</span>
+                </h4>
+                <ul className="space-y-2 text-xs">
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('home')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <Home className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'गृहपृष्ठ (Home)' : 'Home'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('bible')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'पवित्र बाइबल (Holy Bible)' : 'Holy Bible (66 Books)'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('daily_word')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{lang === 'ne' ? 'आजको बचन (Today’s Word)' : 'Today’s Word'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('bhajan')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <Music className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'ख्रीष्टिय भजन (Christian Hymns)' : 'Christian Hymns & Songs'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('prayer')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <HeartHandshake className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'प्रार्थना पर्खाल (Prayer Wall)' : 'Prayer Wall'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('news')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <Newspaper className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'इसाई समाचार (Christian News)' : 'Christian News Portal'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('churches')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-semibold text-[#8D8741] dark:text-[#DAAD86] cursor-pointer"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>{lang === 'ne' ? 'मण्डली निर्देशिका (Churches)' : 'Church Directory'}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
 
-              <a
-                href="https://www.facebook.com/susamachar/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#1877F2] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="Facebook: facebook.com/susamachar"
-              >
-                <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
-                <span>Facebook</span>
-              </a>
+              {/* Column 3: उपयोगी उपकरणहरू (Digital Tools) */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white border-b border-[#BC986A]/20 pb-2 flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-[#8D8741]" />
+                  <span>{lang === 'ne' ? 'डिजिटल उपकरणहरू' : 'Digital Tools'}</span>
+                </h4>
+                <ul className="space-y-2 text-xs">
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('unicode')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'नेपाली युनिकोड' : 'Nepali Unicode'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('notes')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <StickyNote className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'नोट र रिमाइन्डर' : 'Notes & Reminders'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('quiz')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Trophy className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'बाइबल क्विज (Timed Quiz)' : 'Bible Quiz'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('converter')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'मिति परिवर्तन (BS ↔ AD)' : 'BS ↔ AD Converter'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('rates')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Coins className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'सुनचाँदी दर' : 'Gold & Silver Rates'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('forex')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <DollarSign className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{lang === 'ne' ? 'विदेशी विनिमय दर' : 'Forex Rates'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('tools')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-bold text-[#8D8741] dark:text-[#DAAD86] cursor-pointer"
+                    >
+                      <Wrench className="w-3.5 h-3.5" />
+                      <span>{lang === 'ne' ? 'सबै उपकरणहरू (Tools) →' : 'All Tools Hub →'}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
 
-              <a
-                href="https://whatsapp.com/channel/0029Vb9Au5KBadmeOvdhE33L"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-emerald-600 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="WhatsApp Channel"
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>WhatsApp</span>
-              </a>
-
-              <a
-                href="https://www.instagram.com/susamachar"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-pink-600 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="Instagram"
-              >
-                <Instagram className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
-                <span>Instagram</span>
-              </a>
-
-              <a
-                href="https://www.youtube.com/@susamacharnp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-[#FF0000] hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="YouTube: @susamacharnp"
-              >
-                <Youtube className="w-3.5 h-3.5 text-[#FF0000]" />
-                <span>YouTube</span>
-              </a>
-
-              <a
-                href="https://x.com/susamachar"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 border border-[#BC986A]/30 hover:bg-slate-950 hover:text-white text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition-colors"
-                title="X (Twitter)"
-              >
-                <span className="font-mono font-black text-xs">𝕏</span>
-                <span>X</span>
-              </a>
+              {/* Column 4: कानुनी तथा नीति (Legal & Policies) - Spans 2 cols on mobile if needed */}
+              <div className="col-span-2 sm:col-span-1 space-y-3 pt-2 sm:pt-0">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white border-b border-[#BC986A]/20 pb-2 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#8D8741]" />
+                  <span>{lang === 'ne' ? 'कानुनी तथा नीति' : 'Legal & Policies'}</span>
+                </h4>
+                <ul className="grid grid-cols-2 sm:grid-cols-1 gap-2 text-xs">
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('about')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Info className="w-3.5 h-3.5 text-[#8D8741]" />
+                      <span>{lang === 'ne' ? 'हाम्रो बारेमा (About Us)' : 'About Us'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('privacy')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-[#8D8741]" />
+                      <span>{lang === 'ne' ? 'गोपनीयता नीति (Privacy)' : 'Privacy Policy'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('terms')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-[#8D8741]" />
+                      <span>{lang === 'ne' ? 'सेवाका सर्तहरू (Terms)' : 'Terms & Conditions'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('community')}
+                      className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 text-left font-medium cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5 text-[#8D8741]" />
+                      <span>{lang === 'ne' ? 'समुदाय निर्देशिका' : 'Community Guidelines'}</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateToSection('delete-account')}
+                      className="hover:text-red-500 transition-colors flex items-center gap-1.5 text-left font-medium text-red-700 dark:text-red-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{lang === 'ne' ? 'खाता मेटाउने (Delete Account)' : 'Delete Account'}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          {/* Second Line in Footer: Nepali Unicode, Notes & Reminder, About Us, Privacy, Terms, Tools, WhatsApp Support, AI */}
-          <div className="w-full pt-5 border-t border-[#BC986A]/20 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <button
-              onClick={() => {
-                setActiveSection('unicode');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#8D8741]/10 text-[#8D8741] dark:text-[#DAAD86] border border-[#8D8741]/30 hover:bg-[#8D8741] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
-            >
-              <Keyboard className="w-3.5 h-3.5" />
-              <span>{lang === 'ne' ? 'नेपाली युनिकोड (Nepali Unicode)' : 'Nepali Unicode'}</span>
-            </button>
+          {/* Bottom Bar: Copyright notice & Admin CMS button in strictly 1 clean row without BS date */}
+          <div className="pt-5 flex flex-row items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 border-t border-[#BC986A]/20 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate">
+                © {new Date().getFullYear()} बाइबल सन्देश (Bible Sandesh) · biblesandes.com
+              </span>
+            </div>
 
             <button
-              onClick={() => {
-                setActiveSection('notes');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 hover:bg-[#659DBD] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              onClick={() => navigateToSection('admin')}
+              className="h-8 px-2.5 sm:px-3 rounded-lg bg-white dark:bg-slate-800 border border-[#BC986A]/30 dark:border-slate-700 hover:bg-[#8D8741] hover:text-white text-slate-800 dark:text-slate-200 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[11px] sm:text-xs shadow-2xs"
+              title="Admin CMS Login"
             >
-              <StickyNote className="w-3.5 h-3.5 text-[#659DBD] dark:text-[#DAAD86]" />
-              <span>{lang === 'ne' ? 'नोट र रिमाइन्डर (Notes)' : 'Notes & Reminders'}</span>
+              <Shield className="w-3.5 h-3.5 text-[#8D8741]" />
+              <span className="whitespace-nowrap">{lang === 'ne' ? 'व्यवस्थापक लगइन (Admin)' : 'Admin CMS'}</span>
             </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('about');
-                window.location.hash = 'about';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            >
-              <Info className="w-3.5 h-3.5 text-[#8D8741]" />
-              <span>{lang === 'ne' ? 'हाम्रो बारेमा (About Us)' : 'About Us'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('privacy');
-                window.location.hash = 'privacy';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            >
-              <Lock className="w-3.5 h-3.5 text-[#8D8741]" />
-              <span>{lang === 'ne' ? 'गोपनीयता नीति (Privacy)' : 'Privacy Policy'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('terms');
-                window.location.hash = 'terms';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#8D8741]" />
-              <span>{lang === 'ne' ? 'सेवाका सर्तहरू (Terms & Conditions)' : 'Terms & Conditions'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('community');
-                window.location.hash = 'community';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5 text-[#8D8741]" />
-              <span>{lang === 'ne' ? 'समुदाय निर्देशिका (Community Guidelines)' : 'Community Guidelines'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('delete-account');
-                window.location.hash = 'delete-account';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-red-500 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer text-red-700/80 dark:text-red-400"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-600" />
-              <span>{lang === 'ne' ? 'खाता मेटाउने (Delete Account)' : 'Delete Account'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => setActiveFooterModal('tools')}
-              className="hover:text-[#659DBD] transition-colors flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <Wrench className="w-3.5 h-3.5 text-[#8D8741]" />
-              <span>{lang === 'ne' ? 'उपकरणहरू (Tools)' : 'Tools'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => setActiveFooterModal('whatsapp')}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-600/25 hover:bg-emerald-600/20 transition-colors flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>{lang === 'ne' ? 'सहायता (Support · WhatsApp)' : 'Support (WhatsApp)'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => setActiveFooterModal('ai')}
-              className="px-3.5 py-1.5 rounded-xl bg-[#8D8741] hover:bg-[#787334] text-white transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#FBEEC1]" />
-              <span>{lang === 'ne' ? 'AI बाइबल सहायक (AI)' : 'AI Assistant'}</span>
-            </button>
-
-            <span className="text-[#BC986A]/60 hidden sm:inline">•</span>
-
-            <button
-              onClick={() => {
-                setActiveSection('admin');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#FAF6EC] dark:bg-slate-800 text-[#8D8741] dark:text-[#DAAD86] border border-[#BC986A]/40 hover:bg-[#8D8741] hover:text-white transition-colors flex items-center gap-1.5 whitespace-nowrap font-bold"
-              title="Admin CMS Dashboard"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>{lang === 'ne' ? '🔐 एडमिन ड्यासबोर्ड (CMS)' : '🔐 Admin Dashboard'}</span>
-            </button>
-          </div>
-
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center justify-center gap-3">
-            <span>© {new Date().getFullYear()} Bible Sandesh – Christian Platform | biblesandes.com</span>
           </div>
         </div>
       </footer>
@@ -3294,20 +3471,47 @@ export default function App() {
       {showAccountModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-slate-800">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {userSession
                   ? lang === 'ne' ? 'प्रयोगकर्ता प्रोफाइल (User Profile)' : 'Member Account Profile'
                   : authMode === 'login'
-                  ? lang === 'ne' ? 'सुसमाचार खातामा लगइन गर्नुहोस्' : 'Sign In to Susamachar'
+                  ? lang === 'ne' ? 'सुसमाचार खाता लगइन' : 'Sign In to Susamachar'
                   : authMode === 'register'
-                  ? lang === 'ne' ? 'नयाँ खाता दर्ता गर्नुहोस्' : 'Create Member Account'
+                  ? lang === 'ne' ? 'नयाँ खाता खोल्नुहोस् (Register)' : 'Create Member Account'
                   : lang === 'ne' ? 'पासवर्ड रिसेट गर्नुहोस्' : 'Reset Password'}
               </h3>
-              <button onClick={() => setShowAccountModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setShowAccountModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {!userSession && (
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-stone-100 dark:bg-slate-800 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className={`py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                    authMode === 'login'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  {lang === 'ne' ? 'लगइन (Sign In)' : 'Sign In'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('register')}
+                  className={`py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                    authMode === 'register'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  {lang === 'ne' ? 'नयाँ खाता (Register)' : 'Register'}
+                </button>
+              </div>
+            )}
 
             {userSession ? (
               <div className="space-y-4 text-xs">
